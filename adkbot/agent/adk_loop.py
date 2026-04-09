@@ -406,7 +406,7 @@ class AdkAgentLoop:
         """Get or create an ADK session."""
         try:
             # Try to get existing session
-            session = self.session_service.get_session(
+            session = await self.session_service.get_session(
                 app_name=self.APP_NAME,
                 user_id=user_id,
                 session_id=session_id,
@@ -415,7 +415,7 @@ class AdkAgentLoop:
         except Exception:
             # Create new session with initial state
             initial_state = self._build_initial_state(session_key)
-            session = self.session_service.create_session(
+            session = await self.session_service.create_session(
                 app_name=self.APP_NAME,
                 user_id=user_id,
                 session_id=session_id,
@@ -465,7 +465,7 @@ class AdkAgentLoop:
                             channel=message.channel,
                             chat_id=message.chat_id,
                             content=response,
-                            reply_to=message.message_id,
+                            reply_to=message.metadata.get("message_id"),
                         )
                         await self.bus.publish_outbound(outbound)
                 except Exception as e:
@@ -476,7 +476,7 @@ class AdkAgentLoop:
                         channel=message.channel,
                         chat_id=message.chat_id,
                         content=error_msg,
-                        reply_to=message.message_id,
+                        reply_to=message.metadata.get("message_id"),
                     )
                     await self.bus.publish_outbound(outbound)
         except asyncio.CancelledError:

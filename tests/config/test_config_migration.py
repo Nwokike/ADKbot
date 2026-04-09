@@ -15,29 +15,33 @@ from adkbot.config.paths import (
 from adkbot.config.schema import Config
 
 
-def test_xdg_config_home_takes_precedence(monkeypatch):
+def test_xdg_config_home_takes_precedence(monkeypatch, tmp_path):
     """Test that XDG_CONFIG_HOME is used if set."""
-    monkeypatch.setenv(XDG_CONFIG_HOME_ENV, "/mock/xdg/config")
+    xdg_config = tmp_path / "xdg" / "config"
+    monkeypatch.setenv(XDG_CONFIG_HOME_ENV, str(xdg_config))
     # Ensure ADKBOT_HOME isn't interfering
     monkeypatch.delenv(ADKBOT_HOME_ENV, raising=False)
 
     app_dir = _get_app_dir()
-    assert app_dir == Path("/mock/xdg/config/adkbot")
+    assert app_dir == xdg_config / "adkbot"
 
     config_path = get_config_path()
-    assert config_path == Path("/mock/xdg/config/adkbot/config.json")
+    assert config_path == xdg_config / "adkbot" / "config.json"
 
 
-def test_adkbot_home_takes_precedence_over_xdg(monkeypatch):
+def test_adkbot_home_takes_precedence_over_xdg(monkeypatch, tmp_path):
     """Test that ADKBOT_HOME overrides XDG_CONFIG_HOME."""
-    monkeypatch.setenv(XDG_CONFIG_HOME_ENV, "/mock/xdg/config")
-    monkeypatch.setenv(ADKBOT_HOME_ENV, "/mock/adkbot/home")
+    xdg_config = tmp_path / "xdg" / "config"
+    adkbot_home = tmp_path / "adkbot" / "home"
+    
+    monkeypatch.setenv(XDG_CONFIG_HOME_ENV, str(xdg_config))
+    monkeypatch.setenv(ADKBOT_HOME_ENV, str(adkbot_home))
 
     app_dir = _get_app_dir()
-    assert app_dir == Path("/mock/adkbot/home")
+    assert app_dir == adkbot_home
 
     config_path = get_config_path()
-    assert config_path == Path("/mock/adkbot/home/config.json")
+    assert config_path == adkbot_home / "config.json"
 
 
 def test_load_config_keeps_max_tokens_and_ignores_legacy_memory_window(tmp_path) -> None:

@@ -1,0 +1,15 @@
+# ADKBot Git Ignore
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+venv/
+env/
+dist/
+build/
+*.egg-info/
+.adkbot/
+*.log
+workspace/
+test_aliases.py

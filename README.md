@@ -91,11 +91,12 @@ pkg install proot-distro
 proot-distro install ubuntu
 proot-distro login ubuntu
 
-# Inside Ubuntu: install uv
+# Inside Ubuntu: install uv and configure it for Android's filesystem
 apt update && apt upgrade -y
 apt install curl -y
-curl -LsSf https://astral.sh/uv/install.sh | sh
-source ~/.profile
+curl -LsSf [https://astral.sh/uv/install.sh](https://astral.sh/uv/install.sh) | sh
+echo 'export UV_LINK_MODE=copy' >> ~/.bashrc
+source ~/.bashrc
 
 # Install ADKBot
 uv tool install adkbot

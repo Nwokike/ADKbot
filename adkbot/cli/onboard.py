@@ -66,6 +66,18 @@ PROVIDER_ENV_MAP = {
     "xai": ("GROK_API_KEY", "https://console.x.ai/"),
 }
 
+# Pre-configured models for the wizard UI and testing
+# Format: (Display Name, LiteLLM String, Env Var required, Description Category)
+MODEL_PRESETS = [
+    ("Gemini 3.1 Pro", "gemini/gemini-3.1-pro-preview", "GEMINI_API_KEY", "Direct providers"),
+    ("OpenAI GPT-4o", "openai/gpt-4o", "OPENAI_API_KEY", "Direct providers"),
+    ("Claude 3 Opus", "anthropic/claude-3-opus-20240229", "ANTHROPIC_API_KEY", "Direct providers"),
+    ("NVIDIA Nemotron", "nvidia_nim/nvidia/nemotron-3-super-120b-a12b", "NVIDIA_NIM_API_KEY", "Gateway providers"),
+    ("OpenRouter Claude", "openrouter/anthropic/claude-3-opus", "OPENROUTER_API_KEY", "Gateway providers"),
+    ("Ollama Llama 3.2", "ollama/llama3.2", None, "Local models"),
+    ("Custom Model", None, None, "Custom"),
+]
+
 
 def _check_dependencies() -> None:
     """Ensure interactive dependencies are installed."""
@@ -131,18 +143,25 @@ def _configure_model_and_key(config: Config) -> None:
             console.print(f"  [green]✓[/green] {env_var}: {masked}")
         console.print()
 
+    # Dynamically build the panel text from MODEL_PRESETS
+    panel_content = "[bold]LiteLLM Model String Format[/bold]\n\nFormat: [cyan]provider/model-name[/cyan]\n\n"
+    categories = {}
+    for _name, model_str, _env, cat in MODEL_PRESETS:
+        if not model_str:
+            continue
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append(model_str)
+
+    for cat, models in categories.items():
+        suffix = " (no API key needed):" if cat == "Local models" else ":"
+        panel_content += f"[bold]{cat}[/bold]{suffix}\n"
+        for m in models:
+            panel_content += f"  [cyan]{m}[/cyan]\n"
+        panel_content += "\n"
+
     console.print(Panel(
-        "[bold]LiteLLM Model String Format[/bold]\n\n"
-        "Format: [cyan]provider/model-name[/cyan]\n\n"
-        "[bold]Direct providers:[/bold]\n"
-        "  [cyan]gemini/gemini-3.1-pro-preview[/cyan]\n"
-        "  [cyan]openai/gpt-4o[/cyan]\n"
-        "  [cyan]anthropic/claude-3-opus-20240229[/cyan]\n\n"
-        "[bold]Gateway providers:[/bold]\n"
-        "  [cyan]nvidia_nim/nvidia/nemotron-3-super-120b-a12b[/cyan]\n"
-        "  [cyan]openrouter/anthropic/claude-3-opus[/cyan]\n\n"
-        "[bold]Local models[/bold] (no API key needed):\n"
-        "  [cyan]ollama/llama3.2[/cyan]\n",
+        panel_content.strip(),
         title="Model Selection",
         border_style="blue",
     ))

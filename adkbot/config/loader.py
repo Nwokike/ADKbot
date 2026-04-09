@@ -22,7 +22,10 @@ def get_config_path() -> Path:
     """Get the configuration file path."""
     if _current_config_path:
         return _current_config_path
-    return Path.home() / ".adkbot" / "config.json"
+        
+    # Inline import to prevent circular dependency with paths.py
+    from adkbot.config.paths import _get_app_dir
+    return _get_app_dir() / "config.json"
 
 
 def load_config(config_path: Path | None = None) -> Config:

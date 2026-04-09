@@ -1,6 +1,43 @@
+"""Unit tests for config path resolution and migration logic."""
+
 import json
+from pathlib import Path
+
+import pytest
 
 from adkbot.config.loader import load_config, save_config
+from adkbot.config.paths import (
+    ADKBOT_HOME_ENV,
+    XDG_CONFIG_HOME_ENV,
+    _get_app_dir,
+    get_config_path,
+)
+from adkbot.config.schema import Config
+
+
+def test_xdg_config_home_takes_precedence(monkeypatch):
+    """Test that XDG_CONFIG_HOME is used if set."""
+    monkeypatch.setenv(XDG_CONFIG_HOME_ENV, "/mock/xdg/config")
+    # Ensure ADKBOT_HOME isn't interfering
+    monkeypatch.delenv(ADKBOT_HOME_ENV, raising=False)
+
+    app_dir = _get_app_dir()
+    assert app_dir == Path("/mock/xdg/config/adkbot")
+
+    config_path = get_config_path()
+    assert config_path == Path("/mock/xdg/config/adkbot/config.json")
+
+
+def test_adkbot_home_takes_precedence_over_xdg(monkeypatch):
+    """Test that ADKBOT_HOME overrides XDG_CONFIG_HOME."""
+    monkeypatch.setenv(XDG_CONFIG_HOME_ENV, "/mock/xdg/config")
+    monkeypatch.setenv(ADKBOT_HOME_ENV, "/mock/adkbot/home")
+
+    app_dir = _get_app_dir()
+    assert app_dir == Path("/mock/adkbot/home")
+
+    config_path = get_config_path()
+    assert config_path == Path("/mock/adkbot/home/config.json")
 
 
 def test_load_config_keeps_max_tokens_and_ignores_legacy_memory_window(tmp_path) -> None:
@@ -75,8 +112,8 @@ def test_onboard_does_not_crash_with_legacy_memory_window(tmp_path, monkeypatch)
     from adkbot.cli.commands import app
 
     runner = CliRunner()
-    # Wizard is opt-in (use --wizard), default creates config without prompts
-    result = runner.invoke(app, ["onboard"])
+    # Wizard is default, bypass it using --skip-wizard. 'N' answers "Refresh config?"
+    result = runner.invoke(app, ["onboard", "--skip-wizard"], input="N\n")
     assert result.exit_code == 0
 
 
@@ -123,13 +160,9 @@ def test_onboard_refresh_backfills_missing_channel_fields(tmp_path, monkeypatch)
     from adkbot.cli.commands import app
 
     runner = CliRunner()
-    # Wizard is opt-in, default creates config without prompts
-    # First call: create initial config
-    result = runner.invoke(app, ["onboard"])
+    # Wizard is default, bypass it using --skip-wizard. 'N' answers "Refresh config?"
+    result = runner.invoke(app, ["onboard", "--skip-wizard"], input="N\n")
     assert result.exit_code == 0
 
-    # Second call: refresh existing config (answer 'N' to overwrite question)
-    result = runner.invoke(app, ["onboard"], input="N\n")
-    assert result.exit_code == 0
     saved = json.loads(config_path.read_text(encoding="utf-8"))
     assert saved["channels"]["qq"]["msgFormat"] == "plain"

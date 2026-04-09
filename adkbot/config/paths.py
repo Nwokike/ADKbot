@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from adkbot.config.loader import get_config_path
 from adkbot.utils.helpers import ensure_dir
+
+ADKBOT_HOME_ENV = "ADKBOT_HOME"
+XDG_CONFIG_HOME_ENV = "XDG_CONFIG_HOME"
+
+
+def _get_app_dir() -> Path:
+    """Resolve the base application directory using standard environment variables."""
+    if custom_home := os.environ.get(ADKBOT_HOME_ENV):
+        return Path(custom_home).expanduser().resolve()
+    
+    if xdg_config := os.environ.get(XDG_CONFIG_HOME_ENV):
+        return Path(xdg_config).expanduser().resolve() / "adkbot"
+        
+    return Path.home() / ".adkbot"
 
 
 def get_data_dir() -> Path:
@@ -36,27 +51,27 @@ def get_logs_dir() -> Path:
 
 def get_workspace_path(workspace: str | None = None) -> Path:
     """Resolve and ensure the agent workspace path."""
-    path = Path(workspace).expanduser() if workspace else Path.home() / ".adkbot" / "workspace"
+    path = Path(workspace).expanduser() if workspace else _get_app_dir() / "workspace"
     return ensure_dir(path)
 
 
 def is_default_workspace(workspace: str | Path | None) -> bool:
     """Return whether a workspace resolves to adkbot's default workspace path."""
-    current = Path(workspace).expanduser() if workspace is not None else Path.home() / ".adkbot" / "workspace"
-    default = Path.home() / ".adkbot" / "workspace"
+    current = Path(workspace).expanduser() if workspace is not None else _get_app_dir() / "workspace"
+    default = _get_app_dir() / "workspace"
     return current.resolve(strict=False) == default.resolve(strict=False)
 
 
 def get_cli_history_path() -> Path:
     """Return the shared CLI history file path."""
-    return Path.home() / ".adkbot" / "history" / "cli_history"
+    return _get_app_dir() / "history" / "cli_history"
 
 
 def get_bridge_install_dir() -> Path:
     """Return the shared WhatsApp bridge installation directory."""
-    return Path.home() / ".adkbot" / "bridge"
+    return _get_app_dir() / "bridge"
 
 
 def get_legacy_sessions_dir() -> Path:
     """Return the legacy global session directory used for migration fallback."""
-    return Path.home() / ".adkbot" / "sessions"
+    return _get_app_dir() / "sessions"

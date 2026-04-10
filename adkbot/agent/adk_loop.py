@@ -244,42 +244,42 @@ class AdkAgentLoop:
         return get_all_tools()
 
     # -------------------------------------------------------------------------
-    # ADK Callback wrappers
+    # ADK Callback wrappers (Now fully kwarg-safe)
     # -------------------------------------------------------------------------
 
-    async def _before_agent_callback(self, callback_context) -> Any:
+    async def _before_agent_callback(self, *args, **kwargs) -> Any:
         """Wrapper for ADK before_agent_callback."""
         if self._on_progress:
             try:
                 await self._on_progress("agent_start")
             except Exception as e:
                 logger.debug("Progress callback error: {}", e)
-        return before_agent_callback(callback_context)
+        return before_agent_callback(*args, **kwargs)
 
-    async def _after_agent_callback(self, callback_context) -> Any:
+    async def _after_agent_callback(self, *args, **kwargs) -> Any:
         """Wrapper for ADK after_agent_callback."""
         if self._on_progress:
             try:
                 await self._on_progress("agent_end")
             except Exception as e:
                 logger.debug("Progress callback error: {}", e)
-        return after_agent_callback(callback_context)
+        return after_agent_callback(*args, **kwargs)
 
-    async def _before_model_callback(self, callback_context, llm_request) -> Any:
+    async def _before_model_callback(self, *args, **kwargs) -> Any:
         """Wrapper for ADK before_model_callback."""
-        return before_model_callback(callback_context, llm_request)
+        return before_model_callback(*args, **kwargs)
 
-    async def _after_model_callback(self, callback_context, llm_response) -> Any:
+    async def _after_model_callback(self, *args, **kwargs) -> Any:
         """Wrapper for ADK after_model_callback."""
-        return after_model_callback(callback_context, llm_response)
+        return after_model_callback(*args, **kwargs)
 
-    async def _before_tool_callback(self, tool, args, tool_context) -> Any:
+    async def _before_tool_callback(self, *args, **kwargs) -> Any:
         """Wrapper for ADK before_tool_callback."""
-        return before_tool_callback(tool, args, tool_context)
+        return before_tool_callback(*args, **kwargs)
 
-    async def _after_tool_callback(self, tool, args, tool_context, result) -> Any:
+    async def _after_tool_callback(self, *args, **kwargs) -> Any:
         """Wrapper for ADK after_tool_callback."""
-        return after_tool_callback(tool, args, tool_context, result)
+        return after_tool_callback(*args, **kwargs)
 
     # -------------------------------------------------------------------------
     # Message processing

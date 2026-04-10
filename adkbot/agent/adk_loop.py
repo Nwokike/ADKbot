@@ -191,12 +191,13 @@ class AdkAgentLoop:
         # Create the ADK agent
         self._setup_agent()
 
-        # Create the Runner
+        # Create the Runner with auto_create_session enabled!
         self.runner = Runner(
             agent=self.agent,
             app_name=self.APP_NAME,
             session_service=self.session_service,
             memory_service=self.memory_service,
+            auto_create_session=True,
         )
 
         logger.info(

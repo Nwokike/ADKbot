@@ -132,7 +132,7 @@ adkbot --version
 > [!TIP]
 > Get API keys:
 > - [NVIDIA NIM](https://build.nvidia.com/) (recommended, completely free, massive open-weight model catalog)
-> - [Google Gemini](https://aistudio.google.com/apikey) (free tier available, best ADK integration)
+> - [Google Gemini](https://aistudio.google.com/apikey) (free tier available, best ADK integration, try `gemini/gemma-4-31b-it` practically impossible to hit the free limits)
 > - [Groq](https://console.groq.com/) (fastest inference, free tier)
 > - [OpenRouter](https://openrouter.ai/) (access to many models via one key)
 > - [Anthropic](https://console.anthropic.com/) (Claude Opus 4.6)
@@ -168,6 +168,7 @@ This starts the interactive wizard by default. Use `adkbot onboard --skip-wizard
 LiteLLM model strings work with 100+ providers. Examples:
 - `"nvidia_nim/nvidia/nemotron-3-super-120b-a12b"` - NVIDIA NIM (uses `NVIDIA_NIM_API_KEY`, free)
 - `"nvidia_nim/moonshotai/kimi-k2-instruct-0905"` - Kimi K2 via NVIDIA NIM (free)
+- `"gemini/gemma-4-31b-it"` - Google Gemma 4 (Uses `GEMINI_API_KEY`, generous free tier)
 - `"gemini/gemini-3.1-pro-preview"` - Google Gemini (uses `GEMINI_API_KEY`)
 - `"groq/llama-3.3-70b-versatile"` - Groq (uses `GROQ_API_KEY`)
 - `"anthropic/claude-opus-4-6"` - Anthropic Claude (uses `ANTHROPIC_API_KEY`)

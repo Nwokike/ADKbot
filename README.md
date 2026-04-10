@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="adkbot_logo.png" alt="adkbot" width="500">
+  <img src="https://raw.githubusercontent.com/Nwokike/ADKbot/refs/heads/main/adkbot_logo.png" alt="adkbot" width="500">
   <h1>Multi-Model AI Assistant</h1>
   <p>
     <a href="https://pypi.org/project/adkbot/"><img src="https://img.shields.io/pypi/v/adkbot" alt="PyPI Version"></a>

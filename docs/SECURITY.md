@@ -2,12 +2,12 @@
 
 ## Supported Versions
 
-Currently, ADKBot is in the **Alpha** phase (v0.1.0). We provide security updates for the current major release. 
+Currently, ADKBot is in the **Alpha** phase (v0.1.1). We provide security updates for the current major release. 
 
 | Version | Supported          |
 | ------- | ------------------ |
 | 0.1.x   | :white_check_mark: |
-| < 0.1.0 | :x:                |
+| < 0.1.1 | :x:                |
 
 ## Reporting a Vulnerability
 

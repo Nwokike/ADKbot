@@ -19,7 +19,7 @@ import { readFile, writeFile, mkdir } from 'fs/promises';
 import { join, basename } from 'path';
 import { randomBytes } from 'crypto';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 export interface InboundMessage {
   id: string;

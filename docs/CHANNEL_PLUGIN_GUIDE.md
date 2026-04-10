@@ -80,7 +80,7 @@ Create your `pyproject.toml` and register the `adkbot.channels` entry point.
 ```toml
 [project]
 name = "adkbot-channel-webhook"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = ["adkbot", "aiohttp"]
 
 [project.entry-points."adkbot.channels"]

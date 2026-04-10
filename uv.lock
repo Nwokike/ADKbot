@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "adkbot"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "chardet" },
@@ -118,7 +118,7 @@ dev = [
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "pytest-asyncio", specifier = ">=1.3.0" },
     { name = "pytest-cov", specifier = ">=6.0.0" },
-    { name = "ruff", specifier = ">=0.1.1" },
+    { name = "ruff", specifier = ">=0.1.2" },
 ]
 
 [[package]]

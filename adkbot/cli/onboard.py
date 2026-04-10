@@ -67,7 +67,6 @@ PROVIDER_ENV_MAP = {
 }
 
 # Pre-configured models for the wizard UI and testing
-# Format: (Display Name, LiteLLM String, Env Var required, Description Category)
 MODEL_PRESETS = [
     ("Gemini 3.1 Pro", "gemini/gemini-3.1-pro-preview", "GEMINI_API_KEY", "Direct providers"),
     ("OpenAI GPT-4o", "openai/gpt-4o", "OPENAI_API_KEY", "Direct providers"),
@@ -177,25 +176,27 @@ def _configure_model_and_key(config: Config) -> None:
         return
 
     config.agents.defaults.model = model_string
+    model_lower = model_string.lower()
 
     # 1. Handle API Base (Local Models)
-    model_lower = model_string.lower()
     is_local = model_lower.startswith("ollama") or (model_lower.startswith("openai/") and "localhost" in model_lower)
 
     if is_local:
         console.print("\n[dim]Local model detected. Specify the API base URL.[/dim]")
         api_base = questionary.text(
             "API base URL:",
-            default=config.agents.defaults.apiBase or ("http://localhost:11434" if "ollama" in model_lower else "http://localhost:8000/v1"),
+            default=getattr(config.agents.defaults, "api_base", None) or ("http://localhost:11434" if "ollama" in model_lower else "http://localhost:8000/v1"),
         ).ask()
         if api_base:
-            config.agents.defaults.apiBase = api_base
-        return  # Local models don't need API keys
+            setattr(config.agents.defaults, "api_base", api_base)
+        return
 
     # 2. Handle API Key Configuration
     env_var, sign_up_url = None, None
+    provider_name = model_string.split("/")[0] if "/" in model_string else model_string
+
     for prefix, (var, url) in PROVIDER_ENV_MAP.items():
-        if model_lower.startswith(f"{prefix}/"):
+        if model_lower.startswith(f"{prefix}/") or model_lower == prefix:
             env_var, sign_up_url = var, url
             break
             
@@ -203,12 +204,24 @@ def _configure_model_and_key(config: Config) -> None:
     if not env_var and "gemini" in model_lower and "/" not in model_lower:
         env_var, sign_up_url = "GEMINI_API_KEY", "https://aistudio.google.com/apikey"
 
+    # UNKNOWN PROVIDER LOGIC: Save to config.json
     if not env_var:
+        console.print(f"\n[yellow]The provider '{provider_name}' is not in the standard known map.[/yellow]")
+        custom_key = questionary.text(f"Enter API key for {provider_name} (leave blank if none):").ask()
+        if custom_key:
+            config.agents.defaults.api_key = custom_key
+            console.print("[green]✓ Custom API key saved directly to config.json[/green]")
+        else:
+            config.agents.defaults.api_key = ""  # Explicitly clear the custom key!
+            console.print("[dim]No custom API key provided. Existing custom key cleared.[/dim]")
         return
 
+    # KNOWN PROVIDER LOGIC: Save to .env and clear config.json to prevent overrides
     existing_key = os.environ.get(env_var)
     if existing_key:
         console.print(f"\n[green]✓ Using {env_var} from environment[/green]")
+        # Clear custom key so it doesn't override the valid .env key
+        config.agents.defaults.api_key = "" 
         return
 
     console.print(f"\n[yellow]The model '{model_string}' requires an API key ({env_var}).[/yellow]")
@@ -219,8 +232,9 @@ def _configure_model_and_key(config: Config) -> None:
 
     if api_key:
         os.environ[env_var] = api_key
-        if questionary.confirm(f"Save {env_var} to ~/.adkbot/.env for future sessions?", default=True).ask():
-            _save_api_key_to_dotenv(env_var, api_key)
+        _save_api_key_to_dotenv(env_var, api_key)
+        # Clear custom key so it doesn't override the new .env key
+        config.agents.defaults.api_key = ""
     else:
         console.print("[yellow]Warning: No API key provided. Model will likely fail to connect.[/yellow]")
 
@@ -257,7 +271,6 @@ def _configure_channels(config: Config) -> None:
         for name, channel_cls in channels.items():
             channel_config = getattr(config.channels, name, None)
             
-            # Safely check if enabled
             enabled = False
             if isinstance(channel_config, BaseModel):
                 enabled = getattr(channel_config, "enabled", False)
@@ -265,7 +278,6 @@ def _configure_channels(config: Config) -> None:
                 enabled = channel_config.get("enabled", False)
 
             status = "✓" if enabled else "○"
-            # Use Questionary Choice object to separate display UI from return value
             choices.append(Choice(f"{status} {name.title()}", value=name))
 
         choices.append(Choice("← Back to Main Menu", value="back"))
@@ -322,7 +334,6 @@ def _configure_single_channel(config: Config, channel_name: str, channel_cls: ty
     if config_class:
         _configure_pydantic_channel(config, channel_name, config_class, current_dict)
     else:
-        # Fallback for basic channels without schemas
         enabled = questionary.confirm(
             f"Enable {channel_name.title()}?",
             default=current_dict.get("enabled", False),
@@ -333,12 +344,10 @@ def _configure_single_channel(config: Config, channel_name: str, channel_cls: ty
 def _configure_pydantic_channel(config: Config, channel_name: str, config_class: type[BaseModel], current_dict: dict) -> None:
     """Configure a channel using its Pydantic model to handle typing and aliases safely."""
     try:
-        # model_validate safely resolves aliases (like allowFrom -> allow_from)
         working_model = config_class.model_validate(current_dict)
     except ValidationError:
         working_model = config_class()
 
-    # 1. Ask for Enabled state first
     if "enabled" in config_class.model_fields:
         enabled = questionary.confirm(
             f"Enable {channel_name.title()}?",
@@ -347,11 +356,9 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
         setattr(working_model, "enabled", enabled)
 
         if not enabled:
-            # Save the disabled state and exit early
             setattr(config.channels, channel_name, working_model.model_dump(by_alias=True, exclude_none=True))
             return
 
-    # 2. Iterate through schema fields
     for field_name, field_info in config_class.model_fields.items():
         if field_name == "enabled":
             continue
@@ -359,14 +366,12 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
         current_value = getattr(working_model, field_name, None)
         is_sensitive = any(kw in field_name.lower() for kw in ["token", "key", "secret", "password"])
         
-        # Prefer the alias for display if it exists (e.g., 'allowFrom'), otherwise beautify the snake_case
         display_name = field_info.alias if field_info.alias else field_name.replace("_", " ").title()
 
         if is_sensitive and current_value:
             masked = "*" * (len(str(current_value)) - 4) + str(current_value)[-4:]
             console.print(f"[dim]Current {display_name}: {masked}[/dim]")
 
-        # Format defaults for prompt
         if isinstance(current_value, list):
             prompt_default = ",".join(str(v) for v in current_value)
         else:
@@ -375,7 +380,6 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
         new_value = questionary.text(f"Enter {display_name}:", default=prompt_default).ask()
 
         if new_value is not None:
-            # Smart casting based on actual python types rather than strings
             parsed_value = new_value
             origin = get_origin(field_info.annotation) or field_info.annotation
 
@@ -389,11 +393,10 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
                 elif origin is float and new_value:
                     parsed_value = float(new_value)
             except ValueError:
-                pass # Fallback to string, Pydantic will yell at us during dump if it's wrong
+                pass
 
             setattr(working_model, field_name, parsed_value)
 
-    # Save to config using model dump (respecting aliases!)
     dump = working_model.model_dump(by_alias=True, exclude_none=True)
     setattr(config.channels, channel_name, dump)
 
@@ -433,14 +436,19 @@ def _show_summary(config: Config) -> None:
     table.add_column("Value")
 
     table.add_row("Model", config.agents.defaults.model or "[dim]Not Set[/dim]")
+    
+    if getattr(config.agents.defaults, "api_key", None):
+        table.add_row("API Key", "[green]Saved in config.json[/green]")
+    else:
+        table.add_row("API Key", "[dim]Managed via .env[/dim]")
+        
     table.add_row("Max Iterations", str(config.agents.defaults.max_tool_iterations))
     table.add_row("Context Window", f"{config.agents.defaults.context_window_tokens:,} tokens")
     table.add_row("Temperature", str(config.agents.defaults.temperature))
-    # Render channels elegantly
+    
     channels_entry = "None"
     enabled_list = []
     
-    # Channels are stored as extra fields in Pydantic v2
     for name, config_val in config.channels.model_dump(by_alias=True).items():
         if isinstance(config_val, dict) and config_val.get("enabled", False):
             enabled_list.append(name.title())
@@ -459,7 +467,6 @@ def _save_config(config: Config, config_path: Path) -> bool:
     """Save configuration to file safely."""
     try:
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        # mode='json' converts internal types to valid JSON, by_alias respects things like 'allowFrom'
         config_dict = config.model_dump(mode="json", by_alias=True, exclude_none=True)
 
         with open(config_path, "w", encoding="utf-8") as f:
@@ -486,7 +493,6 @@ def run_onboard(initial_config: Config | None = None, skip_wizard: bool = False)
             console.print("[dim]Creating default configuration[/dim]")
             return OnboardResult(config=Config(), should_save=True)
 
-    # Initialize Config
     if initial_config is not None:
         config = initial_config.model_copy(deep=True)
     else:
@@ -496,7 +502,6 @@ def run_onboard(initial_config: Config | None = None, skip_wizard: bool = False)
     original_config = config.model_copy(deep=True)
     _show_welcome()
 
-    # Main Menu Loop
     while True:
         _show_main_menu_header()
 

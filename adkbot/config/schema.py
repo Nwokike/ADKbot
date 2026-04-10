@@ -37,25 +37,7 @@ class ChannelsConfig(Base):
 
 
 class ModelConfig(Base):
-    """Simplified model configuration using LiteLLM model strings.
-
-    LiteLLM model strings follow the format: "provider/model-name"
-    Examples:
-        - "gemini/gemini-3.1-pro-preview" (native Gemini, uses GOOGLE_API_KEY)
-        - "openrouter/openai/gpt-4" (uses OPENROUTER_API_KEY)
-        - "anthropic/claude-3-opus-20240229" (uses ANTHROPIC_API_KEY)
-        - "openai/gpt-4" (uses OPENAI_API_KEY)
-        - "deepseek/deepseek-chat" (uses DEEPSEEK_API_KEY)
-        - "groq/llama-3.1-70b-versatile" (uses GROQ_API_KEY)
-        - "ollama/llama3.2" (local Ollama)
-
-    API keys can be provided via:
-    1. This config (api_key field)
-    2. Environment variables (provider-specific, e.g., OPENAI_API_KEY)
-    3. .env file
-
-    See: https://docs.litellm.ai/docs/providers for all supported providers
-    """
+    """Simplified model configuration using LiteLLM model strings."""
 
     model: str = Field(
         default="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
@@ -79,7 +61,8 @@ class AgentDefaults(Base):
     """Default agent configuration."""
 
     workspace: str = "~/.adkbot/workspace"
-    model: str = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"  # Default to NVIDIA NIM (free tier available)
+    model: str = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"  # Default to NVIDIA NIM
+    api_key: str = ""  # Fallback manual key (not recommended)
     max_tokens: int = 8192
     context_window_tokens: int = 128_000  # Most modern models support 128k+
     context_block_limit: int | None = None
@@ -173,35 +156,7 @@ class ToolsConfig(Base):
 
 
 class Config(BaseSettings):
-    """Root configuration for ADKBot.
-
-    Configuration can be provided via:
-    1. JSON config file (default: ~/.adkbot/config.json)
-    2. Environment variables with ADKBOT_ prefix
-    3. .env file
-
-    Model Configuration (New LiteLLM Pattern):
-        Instead of configuring individual providers, use a LiteLLM model string:
-        - "gemini/gemini-3.1-pro-preview" - Google Gemini (uses GOOGLE_API_KEY or GEMINI_API_KEY)
-        - "openrouter/openai/gpt-4" - Via OpenRouter (uses OPENROUTER_API_KEY)
-        - "anthropic/claude-3-opus-20240229" - Anthropic Claude (uses ANTHROPIC_API_KEY)
-
-    Example config.json:
-        {
-            "agents": {
-                "defaults": {
-                    "model": "nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
-                    "timezone": "America/New_York"
-                }
-            },
-            "channels": {
-                "telegram": {
-                    "enabled": true,
-                    "token": "your-bot-token"
-                }
-            }
-        }
-    """
+    """Root configuration for ADKBot."""
 
     agents: AgentsConfig = Field(default_factory=AgentsConfig)
     channels: ChannelsConfig = Field(default_factory=ChannelsConfig)
@@ -215,96 +170,97 @@ class Config(BaseSettings):
         return Path(self.agents.defaults.workspace).expanduser()
 
     def get_model_config(self) -> ModelConfig:
-        """Get the model configuration for ADK LiteLLM integration.
-
-        Returns:
-            ModelConfig with model string, api_key, and api_base for LiteLlm wrapper.
-        """
+        """Get the model configuration for ADK LiteLLM integration."""
         return ModelConfig(
             model=self.agents.defaults.model,
-            api_key="",  # API keys should come from environment variables
-            api_base=None,
+            api_key=self.get_effective_api_key() or "",
+            api_base=self.get_api_base(),
         )
 
     def get_effective_model(self) -> str:
-        """Get the effective model string for LiteLLM.
-
-        Returns:
-            The model string from config (e.g., "gemini/gemini-3.1-pro-preview", "openrouter/openai/gpt-4").
-        """
+        """Get the effective model string for LiteLLM."""
         return self.agents.defaults.model
 
     def get_effective_api_key(self, model: str | None = None) -> str | None:
         """Get the effective API key for the configured model.
 
-        This method checks environment variables based on the model prefix.
-
-        Args:
-            model: Optional model string to check. Defaults to configured model.
-
-        Returns:
-            API key if found, None otherwise.
+        Prioritizes specific environment variables (e.g., GEMINI_API_KEY) so that
+        switching models automatically uses the correct key.
         """
         import os
+        
+        # --- BULLETPROOF FIX: Force load the .env file into memory right now ---
+        try:
+            from dotenv import load_dotenv
+            from adkbot.config.paths import get_data_dir
+            env_path = get_data_dir() / ".env"
+            if env_path.exists():
+                load_dotenv(env_path, override=False)
+        except ImportError:
+            pass  # Fallback if dotenv isn't available
+
+        # 1. Direct config file specification (fallback escape hatch)
+        if getattr(self.agents.defaults, "api_key", ""):
+            return self.agents.defaults.api_key.strip("'\"")
 
         model = (model or self.agents.defaults.model).lower()
 
-        # Map model prefixes to environment variable names
-        # See: https://docs.litellm.ai/docs/providers
+        # Map model prefixes to specific environment variable names
         provider_env_map = {
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
-            "gemini": "GOOGLE_API_KEY",
+            "gemini": "GEMINI_API_KEY",
             "google": "GOOGLE_API_KEY",
             "openrouter": "OPENROUTER_API_KEY",
             "deepseek": "DEEPSEEK_API_KEY",
             "groq": "GROQ_API_KEY",
+            "nvidia_nim": "NVIDIA_NIM_API_KEY",
             "mistral": "MISTRAL_API_KEY",
             "cohere": "COHERE_API_KEY",
             "huggingface": "HUGGINGFACE_API_KEY",
             "azure": "AZURE_OPENAI_API_KEY",
             "vertex_ai": "GOOGLE_APPLICATION_CREDENTIALS",
-            "ollama": None,  # Local, no API key needed
-            "vllm": None,  # Local, no API key needed
+            "ollama": None,  # Local
+            "vllm": None,  # Local
         }
 
-        # Check for provider prefix in model string
+        # 2. Specific environment variable for the current model
         for prefix, env_var in provider_env_map.items():
             if model.startswith(f"{prefix}/") or model == prefix:
-                if env_var:
-                    return os.environ.get(env_var)
-                return None
+                if env_var and os.environ.get(env_var):
+                    # Strip any accidental single/double quotes around the key
+                    clean_key = os.environ.get(env_var).strip("'\"")
+                    # Push it back into os.environ cleanly so LiteLLM's internal checks pass
+                    os.environ[env_var] = clean_key
+                    return clean_key
+                break  # Stop checking if we found the provider but no key
 
-        # Gemini native (no prefix) uses GOOGLE_API_KEY
-        if "gemini" in model:
-            return os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        # Handle native Gemini strings (without the 'gemini/' prefix)
+        if "gemini" in model and not model.startswith("gemini/"):
+            if os.environ.get("GEMINI_API_KEY"):
+                clean_key = os.environ.get("GEMINI_API_KEY").strip("'\"")
+                os.environ["GEMINI_API_KEY"] = clean_key
+                return clean_key
+            if os.environ.get("GOOGLE_API_KEY"):
+                clean_key = os.environ.get("GOOGLE_API_KEY").strip("'\"")
+                os.environ["GOOGLE_API_KEY"] = clean_key
+                return clean_key
 
-        # Default: check common environment variables
-        for env_var in ["GOOGLE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"]:
+        # 3. Last resort: Common environment variables
+        for env_var in ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GOOGLE_API_KEY"]:
             if os.environ.get(env_var):
-                return os.environ.get(env_var)
+                clean_key = os.environ.get(env_var).strip("'\"")
+                os.environ[env_var] = clean_key
+                return clean_key
 
         return None
 
     def get_api_base(self, model: str | None = None) -> str | None:
-        """Get the API base URL for the model.
-
-        For ADK/LiteLLM, this returns None by default as LiteLLM handles
-        provider-specific URLs automatically. Override via environment variables
-        if needed (e.g., OPENAI_BASE_URL).
-
-        Args:
-            model: Optional model string to check. Defaults to configured model.
-
-        Returns:
-            API base URL if configured, None otherwise.
-        """
+        """Get the API base URL for the model."""
         import os
 
         model = (model or self.agents.defaults.model).lower()
 
-        # Check for custom API base in environment variables
-        # LiteLLM supports provider-specific base URLs via environment
         provider_base_map = {
             "openai": "OPENAI_BASE_URL",
             "anthropic": "ANTHROPIC_BASE_URL",

@@ -84,7 +84,7 @@ class AdkHeartbeatAgent:
         """Initialize the heartbeat decision agent.
 
         Args:
-            model: LiteLLM model string (e.g., "gemini-2.0-flash")
+            model: LiteLLM model string (e.g., "gemini/gemini-3.1-pro-preview")
             api_key: Optional API key (can also use environment variables)
             api_base: Optional API base URL for custom endpoints
             timezone: Timezone for timestamp generation
@@ -250,7 +250,7 @@ class HeartbeatService:
 
         Args:
             workspace: Path to the workspace directory
-            model: LiteLLM model string (e.g., "gemini-2.0-flash")
+            model: LiteLLM model string (e.g., "gemini/gemini-3.1-pro-preview")
             api_key: Optional API key (can also use environment variables)
             api_base: Optional API base URL for custom endpoints
             on_execute: Callback to execute tasks when heartbeat finds work

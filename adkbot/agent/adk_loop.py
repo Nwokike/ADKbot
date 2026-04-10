@@ -76,7 +76,7 @@ class AdkAgentLoop:
         >>> loop = AdkAgentLoop(
         ...     bus=MessageBus(),
         ...     workspace=Path("./workspace"),
-        ...     model="gemini-2.0-flash",
+        ...     model="gemini/gemini-3.1-pro-preview",
         ...     api_key="your-api-key",
         ... )
         >>> async for event in loop.process_message(message):
@@ -90,7 +90,7 @@ class AdkAgentLoop:
         bus: MessageBus,
         workspace: Path,
         config: Config | None = None,
-        model: str = "gemini-2.0-flash",
+        model: str = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
         api_key: str | None = None,
         api_base: str | None = None,
         session_service: InMemorySessionService | None = None,
@@ -107,7 +107,7 @@ class AdkAgentLoop:
             bus: Message bus for channel communication
             workspace: Path to the workspace directory
             config: Optional configuration object (takes precedence over individual args)
-            model: LiteLLM model string (e.g., "gemini-2.0-flash", "openrouter/openai/gpt-4")
+            model: LiteLLM model string (e.g., "gemini/gemini-3.1-pro-preview", "openrouter/openai/gpt-4")
             api_key: API key for the model provider
             api_base: Optional API base URL for custom endpoints
             session_service: Optional ADK session service (defaults to InMemorySessionService)

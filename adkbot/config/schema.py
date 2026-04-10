@@ -1,7 +1,7 @@
 """Configuration schema using Pydantic.
 
 Defines the configuration schema for ADKBot. Uses LiteLLM model strings
-for universal multi-provider support (e.g. "gemini-2.0-flash",
+for universal multi-provider support (e.g. "gemini/gemini-3.1-pro-preview",
 "nvidia_nim/moonshot/kimi-k2-instruct", "groq/llama-3.3-70b-versatile").
 """
 
@@ -41,7 +41,7 @@ class ModelConfig(Base):
 
     LiteLLM model strings follow the format: "provider/model-name"
     Examples:
-        - "gemini-2.0-flash" (native Gemini, uses GOOGLE_API_KEY)
+        - "gemini/gemini-3.1-pro-preview" (native Gemini, uses GOOGLE_API_KEY)
         - "openrouter/openai/gpt-4" (uses OPENROUTER_API_KEY)
         - "anthropic/claude-3-opus-20240229" (uses ANTHROPIC_API_KEY)
         - "openai/gpt-4" (uses OPENAI_API_KEY)
@@ -58,8 +58,8 @@ class ModelConfig(Base):
     """
 
     model: str = Field(
-        default="gemini-2.0-flash",
-        description="LiteLLM model string (e.g., 'gemini-2.0-flash', 'openrouter/openai/gpt-4')",
+        default="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        description="LiteLLM model string (e.g., 'gemini/gemini-3.1-pro-preview', 'openrouter/openai/gpt-4')",
     )
     api_key: str = Field(
         default="",
@@ -79,7 +79,7 @@ class AgentDefaults(Base):
     """Default agent configuration."""
 
     workspace: str = "~/.adkbot/workspace"
-    model: str = "gemini-2.0-flash"  # Default to Gemini (free tier available)
+    model: str = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"  # Default to NVIDIA NIM (free tier available)
     max_tokens: int = 8192
     context_window_tokens: int = 128_000  # Most modern models support 128k+
     context_block_limit: int | None = None
@@ -182,7 +182,7 @@ class Config(BaseSettings):
 
     Model Configuration (New LiteLLM Pattern):
         Instead of configuring individual providers, use a LiteLLM model string:
-        - "gemini-2.0-flash" - Google Gemini (uses GOOGLE_API_KEY or GEMINI_API_KEY)
+        - "gemini/gemini-3.1-pro-preview" - Google Gemini (uses GOOGLE_API_KEY or GEMINI_API_KEY)
         - "openrouter/openai/gpt-4" - Via OpenRouter (uses OPENROUTER_API_KEY)
         - "anthropic/claude-3-opus-20240229" - Anthropic Claude (uses ANTHROPIC_API_KEY)
 
@@ -190,7 +190,7 @@ class Config(BaseSettings):
         {
             "agents": {
                 "defaults": {
-                    "model": "gemini-2.0-flash",
+                    "model": "nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
                     "timezone": "America/New_York"
                 }
             },
@@ -230,7 +230,7 @@ class Config(BaseSettings):
         """Get the effective model string for LiteLLM.
 
         Returns:
-            The model string from config (e.g., "gemini-2.0-flash", "openrouter/openai/gpt-4").
+            The model string from config (e.g., "gemini/gemini-3.1-pro-preview", "openrouter/openai/gpt-4").
         """
         return self.agents.defaults.model
 
@@ -320,5 +320,3 @@ class Config(BaseSettings):
         return None
 
     model_config = ConfigDict(env_prefix="ADKBOT_", env_nested_delimiter="__")
-
-

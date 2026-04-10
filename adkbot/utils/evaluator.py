@@ -78,7 +78,7 @@ class AdkEvaluationAgent:
         """Initialize the evaluation agent.
 
         Args:
-            model: LiteLLM model string (e.g., "gemini-2.0-flash", "openrouter/openai/gpt-4")
+            model: LiteLLM model string (e.g., "gemini/gemini-3.1-pro-preview", "openrouter/openai/gpt-4")
             api_key: Optional API key (can also use environment variables)
             api_base: Optional API base URL for custom endpoints
         """
@@ -237,7 +237,7 @@ async def evaluate_response(
     Args:
         response: The agent's response from the background task
         task_context: The original task that was executed
-        model: LiteLLM model string (e.g., "gemini-2.0-flash")
+        model: LiteLLM model string (e.g., "gemini/gemini-3.1-pro-preview")
         api_key: Optional API key (can also use environment variables)
         api_base: Optional API base URL for custom endpoints
 

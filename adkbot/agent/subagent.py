@@ -63,7 +63,7 @@ class AdkSubagentManager:
         self,
         workspace: Path,
         bus: MessageBus,
-        model: str = "gemini-2.0-flash",
+        model: str = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
         api_key: str | None = None,
         api_base: str | None = None,
         restrict_to_workspace: bool = False,
@@ -73,7 +73,7 @@ class AdkSubagentManager:
         Args:
             workspace: Path to workspace directory
             bus: Message bus for result announcements
-            model: LiteLLM model string (e.g., "gemini-2.0-flash")
+            model: LiteLLM model string (e.g., "gemini/gemini-3.1-pro-preview")
             api_key: API key for the model provider
             api_base: Optional API base URL
             restrict_to_workspace: Whether to restrict file operations to workspace
@@ -333,5 +333,3 @@ Execute the task and report your findings.
     def get_running_count(self) -> int:
         """Return the number of currently running subagent tasks."""
         return len([t for t in self._running_tasks.values() if not t.done()])
-
-

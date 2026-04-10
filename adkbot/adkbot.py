@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -166,6 +167,16 @@ class AdkBot:
         if session_id is None:
             session_id = str(uuid.uuid4())
 
+        # Ensure session exists to prevent "Session not found" ADK error
+        try:
+            await self.session_service.get_session(
+                app_name=self.APP_NAME, user_id=user_id, session_id=session_id
+            )
+        except Exception:
+            await self.session_service.create_session(
+                app_name=self.APP_NAME, user_id=user_id, session_id=session_id, state={}
+            )
+
         new_message = types.Content(
             role="user",
             parts=[types.Part(text=message)],
@@ -207,6 +218,22 @@ class AdkBot:
         if session_id is None:
             session_id = str(uuid.uuid4())
 
+        # Ensure session exists to prevent "Session not found" ADK error
+        async def _ensure_session():
+            try:
+                await self.session_service.get_session(
+                    app_name=self.APP_NAME, user_id=user_id, session_id=session_id
+                )
+            except Exception:
+                await self.session_service.create_session(
+                    app_name=self.APP_NAME, user_id=user_id, session_id=session_id, state={}
+                )
+
+        try:
+            asyncio.run(_ensure_session())
+        except RuntimeError:
+            pass # Fallback if an event loop is already running
+
         new_message = types.Content(
             role="user",
             parts=[types.Part(text=message)],
@@ -241,7 +268,7 @@ def _create_litellm_model(config: Any) -> Any:
     and any LiteLLM-supported provider.
 
     The model string format determines the provider:
-    - "gemini-2.0-flash" -> Gemini (native)
+    - "gemini/gemini-3.1-pro-preview" -> Gemini (native)
     - "openrouter/openai/gpt-4" -> OpenRouter
     - "anthropic/claude-3-opus" -> Anthropic
     - etc.

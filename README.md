@@ -2,6 +2,8 @@
   <img src="adkbot_logo.png" alt="adkbot" width="500">
   <h1>Multi-Model AI Assistant</h1>
   <p>
+    <a href="https://pypi.org/project/adkbot/"><img src="https://img.shields.io/pypi/v/adkbot" alt="PyPI Version"></a>
+    <a href="https://pepy.tech/project/adkbot"><img src="https://static.pepy.tech/badge/adkbot" alt="PyPI Downloads"></a>
     <img src="https://img.shields.io/badge/python-≥3.11-blue" alt="Python">
     <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
     <img src="https://img.shields.io/badge/ADK-powered-orange" alt="ADK">

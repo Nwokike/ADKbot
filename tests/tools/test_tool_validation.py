@@ -334,8 +334,10 @@ async def test_exec_head_tail_truncation() -> None:
 async def test_exec_timeout_parameter() -> None:
     """LLM-supplied timeout should override the default."""
     result = await execute_command(command="python -c \"import time; time.sleep(10)\"", timeout=1)
-    assert "error" in result
-    assert "timed out" in result["error"].lower()
+    # NEW BEHAVIOR: We now return partial output and exit_code -1 on timeout 
+    # instead of a hard "error" key, so the LLM can read partial logs.
+    assert result.get("exit_code") == -1
+    assert "timed out" in result.get("output", "").lower()
 
 
 async def test_exec_timeout_capped_at_max() -> None:

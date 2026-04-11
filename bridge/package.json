@@ -1,6 +1,6 @@
 {
   "name": "adkbot-whatsapp-bridge",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "WhatsApp bridge for adkbot using Baileys",
   "type": "module",
   "main": "dist/index.js",

@@ -14,6 +14,7 @@ Reference: https://google.github.io/adk-docs/runtime/
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from contextlib import AsyncExitStack
 from pathlib import Path
@@ -56,6 +57,8 @@ from adkbot.agent.subagent import AdkSubagentManager
 from adkbot.agent.tools.registry import get_all_tools
 from adkbot.bus.events import InboundMessage, OutboundMessage
 from adkbot.bus.queue import MessageBus
+from adkbot.command.builtin import register_builtin_commands
+from adkbot.command.router import CommandContext, CommandRouter
 from adkbot.config.schema import AgentDefaults, Config
 from adkbot.session.manager import SessionManager
 
@@ -73,6 +76,7 @@ class AdkAgentLoop:
     - Uses ADK's callbacks instead of AgentHook
     - Tools are plain functions (not Tool classes)
     - Incorporates self-healing retry logic for tool hallucinations
+    - Implements universal CommandRouter interception for all channels
 
     Example:
         >>> loop = AdkAgentLoop(
@@ -179,6 +183,12 @@ class AdkAgentLoop:
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._background_tasks: list[asyncio.Task] = []
 
+        # Legacy compat state for builtin commands (/status, /stop, etc.)
+        self._active_tasks: dict[str, list[asyncio.Task]] = {}
+        self._start_time = time.time()
+        self._last_usage = {}
+        self.context_window_tokens = getattr(config.agents.defaults, "context_window_tokens", 128000) if config else 128000
+
         # MCP connection state
         self._mcp_stack: AsyncExitStack | None = None
         self._mcp_connected = False
@@ -189,6 +199,10 @@ class AdkAgentLoop:
             self._channels_config = getattr(config, "channels", None)
         else:
             self._channels_config = None
+
+        # Command Router Initialization
+        self.commands = CommandRouter()
+        register_builtin_commands(self.commands)
 
         # Create the ADK agent
         self._setup_agent()
@@ -487,7 +501,38 @@ class AdkAgentLoop:
                 if not self._running:
                     break
                 try:
-                    # Process the message
+                    content_strip = message.content.strip()
+                    
+                    # --- COMMAND INTERCEPTION (Universal Router) ---
+                    if content_strip.startswith("/"):
+                        session_key = f"{message.channel}:{message.chat_id}"
+                        
+                        # Special handling for /new to actively wipe the ADK session UUID
+                        if content_strip.lower().startswith("/new"):
+                            self._active_sessions.pop(session_key, None)
+
+                        # Package it for the CommandRouter
+                        ctx = CommandContext(
+                            msg=message, 
+                            session=self.sessions.get_or_create(session_key), 
+                            key=session_key, 
+                            raw=content_strip, 
+                            loop=self
+                        )
+                        
+                        result = None
+                        if self.commands.is_priority(content_strip):
+                            result = await self.commands.dispatch_priority(ctx)
+                        else:
+                            result = await self.commands.dispatch(ctx)
+                            
+                        # If a command handled it, publish output and skip LLM logic
+                        if result:
+                            await self.bus.publish_outbound(result)
+                        continue
+                    # -----------------------------------------------
+
+                    # Process the message natively via the LLM
                     response = await self.process_message(message)
 
                     # Send response if we got one

@@ -17,7 +17,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import get_args, get_origin
+from typing import Literal, get_args, get_origin
 
 try:
     import questionary
@@ -78,6 +78,85 @@ MODEL_PRESETS = [
     ("Custom Model", None, None, "Custom"),
 ]
 
+# --- CHANNEL UX IMPROVEMENTS ---
+# These are technical fields that should use their defaults and NOT be shown in the wizard
+ADVANCED_CHANNEL_FIELDS = {
+    # General / Chat connections
+    "connection_pool_size", "pool_timeout", "streaming", "intents", 
+    "working_emoji", "working_emoji_delay", "read_receipt_emoji", 
+    "react_emoji", "reply_to_message", "proxy",
+    
+    # Email Protocol Noise (Hide these so the user isn't overwhelmed)
+    "consentGranted", "imapPort", "imapMailbox", "imapUseSsl",
+    "smtpPort", "smtpUseTls", "smtpUseSsl", "autoReplyEnabled",
+    "pollIntervalSeconds", "markSeen", "maxBodyChars", "subjectPrefix",
+    "verifyDkim", "verifySpf",
+    # (Pydantic might expose them as snake_case depending on aliases)
+    "consent_granted", "imap_port", "imap_mailbox", "imap_use_ssl",
+    "smtp_port", "smtp_use_tls", "smtp_use_ssl", "auto_reply_enabled",
+    "poll_interval_seconds", "mark_seen", "max_body_chars", "subject_prefix",
+    "verify_dkim", "verify_spf"
+}
+
+# Human-readable hints for channel fields to explain WHAT they are and WHERE to get them
+CHANNEL_FIELD_HINTS = {
+    "telegram": {
+        "token": "Create a bot via @BotFather on Telegram and paste the HTTP API Token here.",
+        "allow_from": "List of Telegram Usernames or IDs allowed to talk to the bot (comma-separated, leave blank for anyone).",
+        "group_policy": "If added to a group: 'mention' (only replies when tagged) or 'open' (replies to everything)."
+    },
+    "discord": {
+        "token": "Bot Token from the Discord Developer Portal -> Bot -> Reset Token.",
+        "allow_from": "List of Discord User IDs allowed to talk to the bot (comma-separated, leave blank for anyone).",
+        "group_policy": "If added to a server: 'mention' (only replies when tagged) or 'open' (replies to everything)."
+    },
+    "whatsapp": {
+        "bridge_url": "The local WebSocket URL for the Node.js bridge (default: ws://localhost:3001).",
+        "bridge_token": "Optional password to secure the local bridge (leave blank normally).",
+        "allow_from": "List of phone numbers allowed to talk to the bot e.g., 2348012345678 (comma-separated, leave blank for anyone).",
+        "group_policy": "If added to a WhatsApp group: 'mention' (only replies when tagged) or 'open' (replies to everything)."
+    },
+    "email": {
+        "imapHost": "IMAP Server Address to read mail (e.g., imap.gmail.com).",
+        "imapUsername": "The email address the bot will read from.",
+        "imapPassword": "The email password (Use an 'App Password' if using Gmail/2FA).",
+        "smtpHost": "SMTP Server Address to send mail (e.g., smtp.gmail.com).",
+        "smtpUsername": "The email address the bot will send from (usually same as IMAP).",
+        "smtpPassword": "The SMTP password (or App Password).",
+        "fromAddress": "The sender address shown to recipients (e.g., bot@yourdomain.com).",
+        "allow_from": "List of email addresses allowed to talk to the bot (comma-separated, leave blank for anyone)."
+    },
+    "qq": {
+        "app_id": "App ID from the QQ Bot Open Platform.",
+        "token": "Bot Token from the QQ Bot Open Platform.",
+        "app_secret": "App Secret from the QQ Bot Open Platform."
+    },
+    "slack": {
+        "app_token": "App-Level Token starting with 'xapp-' (Slack API -> Basic Information -> App-Level Tokens).",
+        "bot_token": "Bot User OAuth Token starting with 'xoxb-' (Slack API -> OAuth & Permissions)."
+    },
+    "feishu": {
+        "app_id": "App ID from Feishu/Lark Developer Console -> Credentials & Basic Info.",
+        "app_secret": "App Secret from Feishu/Lark Developer Console -> Credentials & Basic Info.",
+        "verification_token": "Event verification token (optional, from Event Subscriptions).",
+        "encrypt_key": "Event encryption key (optional, from Event Subscriptions)."
+    },
+    "dingtalk": {
+        "client_id": "App Key / Client ID from the DingTalk Developer Console.",
+        "client_secret": "App Secret from the DingTalk Developer Console."
+    },
+    "wecom": {
+        "corp_id": "Your Enterprise ID (My Enterprise -> Enterprise Information).",
+        "corp_secret": "Secret from your specific App in WeCom.",
+        "agent_id": "The Agent ID for your specific App in WeCom."
+    },
+    "matrix": {
+        "homeserver": "The Matrix homeserver URL (e.g., https://matrix.org).",
+        "username": "The bot's full username (e.g., @mybot:matrix.org).",
+        "password": "The bot's account password."
+    }
+}
+
 
 def _check_dependencies() -> None:
     """Ensure interactive dependencies are installed."""
@@ -115,7 +194,7 @@ def _show_welcome() -> None:
             "This wizard will help you set up ADKBot.\n"
             "You can configure:\n"
             "  • LLM model (using LiteLLM for multi-provider support)\n"
-            "  • Chat channels (Telegram, Discord, etc.)\n"
+            "  • Chat channels (Telegram, Discord, WhatsApp, etc.)\n"
             "  • Agent settings\n\n"
             "[dim]Press Ctrl+C at any time to exit without saving.[/dim]",
             border_style="blue",
@@ -444,12 +523,13 @@ def _configure_single_channel(config: Config, channel_name: str, channel_cls: ty
 
 
 def _configure_pydantic_channel(config: Config, channel_name: str, config_class: type[BaseModel], current_dict: dict) -> None:
-    """Configure a channel using its Pydantic model to handle typing and aliases safely."""
+    """Configure a channel using its Pydantic model with smart hints and typing."""
     try:
         working_model = config_class.model_validate(current_dict)
     except ValidationError:
         working_model = config_class()
 
+    # Step 1: Always ask to Enable/Disable first
     if "enabled" in config_class.model_fields:
         enabled = questionary.confirm(
             f"Enable {channel_name.title()}?",
@@ -458,11 +538,20 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
         setattr(working_model, "enabled", enabled)
 
         if not enabled:
+            # If disabled, save and return immediately. Don't prompt for tokens.
             setattr(config.channels, channel_name, working_model.model_dump(by_alias=True, exclude_none=True))
             return
 
+    # Look up the hints dictionary for this specific channel
+    channel_hints = CHANNEL_FIELD_HINTS.get(channel_name, {})
+
+    # Step 2: Loop through the relevant fields
     for field_name, field_info in config_class.model_fields.items():
         if field_name == "enabled":
+            continue
+            
+        # Hide overly technical fields from the simple wizard UI
+        if field_name in ADVANCED_CHANNEL_FIELDS:
             continue
 
         current_value = getattr(working_model, field_name, None)
@@ -470,20 +559,57 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
         
         display_name = field_info.alias if field_info.alias else field_name.replace("_", " ").title()
 
+        # Display the custom hint if we have one
+        hint_text = channel_hints.get(field_name)
+        if hint_text:
+            console.print(f"\n[cyan]💡 {display_name}:[/cyan] [dim]{hint_text}[/dim]")
+        else:
+            console.print(f"\n[bold]{display_name}[/bold]")
+
+        # Mask sensitive keys so no one screen-shares them
         if is_sensitive and current_value:
             masked = "*" * (len(str(current_value)) - 4) + str(current_value)[-4:]
-            console.print(f"[dim]Current {display_name}: {masked}[/dim]")
+            console.print(f"[dim]Current value: {masked}[/dim]")
 
+        # Prepare default text for the prompt
         if isinstance(current_value, list):
             prompt_default = ",".join(str(v) for v in current_value)
         else:
             prompt_default = str(current_value) if current_value is not None else ""
 
-        new_value = questionary.text(f"Enter {display_name}:", default=prompt_default).ask()
+        # Check if the field is a literal choice (like group_policy: 'open' or 'mention')
+        origin = get_origin(field_info.annotation) or field_info.annotation
+        
+        # Determine the best Questionary UI prompt based on the variable type
+        new_value = None
+        if origin is bool:
+            # Native Y/N prompt for booleans
+            bool_val = questionary.confirm(
+                f"Enable {display_name}?", 
+                default=(current_value is True)
+            ).ask()
+            if bool_val is not None:
+                new_value = "true" if bool_val else "false"
+        elif get_origin(field_info.annotation) is Literal:
+            # Dropdown menu for literal choices (e.g. ['open', 'mention'])
+            choices = list(get_args(field_info.annotation))
+            selected = questionary.select(
+                f"Select {display_name}:",
+                choices=choices,
+                default=prompt_default if prompt_default in choices else choices[0]
+            ).ask()
+            if selected is not None:
+                new_value = str(selected)
+        else:
+            # Standard text input
+            new_value = questionary.text(
+                f"Enter {display_name}:", 
+                default=prompt_default
+            ).ask()
 
+        # Apply the new value and cast it properly
         if new_value is not None:
             parsed_value = new_value
-            origin = get_origin(field_info.annotation) or field_info.annotation
 
             try:
                 if origin is bool:
@@ -499,8 +625,11 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
 
             setattr(working_model, field_name, parsed_value)
 
+    # Save configuration to the active Pydantic Config tree
     dump = working_model.model_dump(by_alias=True, exclude_none=True)
     setattr(config.channels, channel_name, dump)
+    console.print(f"\n[green]✓ {channel_name.title()} configured successfully![/green]")
+    questionary.text("Press Enter to continue...").ask()
 
 
 def _configure_agent_settings(config: Config) -> None:

@@ -199,6 +199,9 @@ class TelegramChannel(BaseChannel):
         BotCommand("help", "Show available commands"),
         BotCommand("restart", "Restart the bot"),
         BotCommand("status", "Show bot status"),
+        BotCommand("model", "Show or switch the active model"),
+        BotCommand("version", "Show bot version"),
+        BotCommand("ping", "Check if the bot is alive"),
     ]
 
     @classmethod
@@ -285,6 +288,9 @@ class TelegramChannel(BaseChannel):
         self._app.add_handler(CommandHandler("restart", self._forward_command))
         self._app.add_handler(CommandHandler("status", self._forward_command))
         self._app.add_handler(CommandHandler("help", self._on_help))
+        self._app.add_handler(CommandHandler("model", self._forward_command))
+        self._app.add_handler(CommandHandler("version", self._forward_command))
+        self._app.add_handler(CommandHandler("ping", self._forward_command))
 
         # Add message handler for text, photos, voice, documents
         self._app.add_handler(

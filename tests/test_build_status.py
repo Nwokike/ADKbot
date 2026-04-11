@@ -5,7 +5,7 @@ from adkbot.utils.helpers import build_status_content
 
 def test_status_shows_cache_hit_rate():
     content = build_status_content(
-        version="0.1.3",
+        version="0.1.4",
         model="glm-4-plus",
         start_time=1000000.0,
         last_usage={"prompt_tokens": 2000, "completion_tokens": 300, "cached_tokens": 1200},
@@ -20,7 +20,7 @@ def test_status_shows_cache_hit_rate():
 def test_status_no_cache_info():
     """Without cached_tokens, display should not show cache percentage."""
     content = build_status_content(
-        version="0.1.3",
+        version="0.1.4",
         model="glm-4-plus",
         start_time=1000000.0,
         last_usage={"prompt_tokens": 2000, "completion_tokens": 300},
@@ -35,7 +35,7 @@ def test_status_no_cache_info():
 def test_status_zero_cached_tokens():
     """cached_tokens=0 should not show cache percentage."""
     content = build_status_content(
-        version="0.1.3",
+        version="0.1.4",
         model="glm-4-plus",
         start_time=1000000.0,
         last_usage={"prompt_tokens": 2000, "completion_tokens": 300, "cached_tokens": 0},
@@ -48,7 +48,7 @@ def test_status_zero_cached_tokens():
 
 def test_status_100_percent_cached():
     content = build_status_content(
-        version="0.1.3",
+        version="0.1.4",
         model="glm-4-plus",
         start_time=1000000.0,
         last_usage={"prompt_tokens": 1000, "completion_tokens": 100, "cached_tokens": 1000},

@@ -72,7 +72,7 @@ MODEL_PRESETS = [
     ("Gemini 3.1 Pro", "gemini/gemini-3.1-pro-preview", "GEMINI_API_KEY", "Direct providers"),
     ("OpenAI GPT-4o", "openai/gpt-4o", "OPENAI_API_KEY", "Direct providers"),
     ("Claude 3 Opus", "anthropic/claude-3-opus-20240229", "ANTHROPIC_API_KEY", "Direct providers"),
-    ("NVIDIA Nemotron", "nvidia_nim/nvidia/nemotron-3-super-120b-a12b", "NVIDIA_NIM_API_KEY", "Gateway providers"),
+    ("NVIDIA GLM-5", "nvidia_nim/z-ai/glm5", "NVIDIA_NIM_API_KEY", "Gateway providers"),
     ("OpenRouter Claude", "openrouter/anthropic/claude-3-opus", "OPENROUTER_API_KEY", "Gateway providers"),
     ("Ollama Llama 3.2", "ollama/llama3.2", None, "Local models"),
     ("Custom Model", None, None, "Custom"),
@@ -170,7 +170,7 @@ def _configure_model_and_key(config: Config) -> None:
     current_model = config.agents.defaults.model
     model_string = questionary.text(
         "Enter your LiteLLM model string:",
-        default=current_model if current_model else "nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        default=current_model if current_model else "nvidia_nim/z-ai/glm5",
     ).ask()
 
     if not model_string:

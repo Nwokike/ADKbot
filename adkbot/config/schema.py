@@ -2,7 +2,7 @@
 
 Defines the configuration schema for ADKBot. Uses LiteLLM model strings
 for universal multi-provider support (e.g. "gemini/gemini-3.1-pro-preview",
-"nvidia_nim/moonshot/kimi-k2-instruct", "groq/llama-3.3-70b-versatile").
+"nvidia_nim/z-ai/glm5", "groq/llama-3.3-70b-versatile").
 """
 
 from pathlib import Path
@@ -41,7 +41,7 @@ class AgentDefaults(Base):
     """Default agent configuration."""
 
     workspace: str = "~/.adkbot/workspace"
-    model: str = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"  # Default to NVIDIA NIM
+    model: str = "nvidia_nim/z-ai/glm5"  # Default to NVIDIA NIM GLM-5
     api_key: str = ""  # Fallback manual key (not recommended)
     max_tokens: int = 8192
     context_window_tokens: int = 128_000  # Most modern models support 128k+

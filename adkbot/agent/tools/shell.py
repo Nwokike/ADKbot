@@ -69,6 +69,20 @@ def _guard_command(command: str, cwd: str, restrict_to_workspace: bool = False) 
     return None
 
 
+async def _read_stream(stream: asyncio.StreamReader | None, parts: list[str]) -> None:
+    """Read a stream in chunks to safely capture partial output."""
+    if not stream:
+        return
+    try:
+        while True:
+            chunk = await stream.read(8192)
+            if not chunk:
+                break
+            parts.append(chunk.decode("utf-8", errors="replace"))
+    except Exception:
+        pass
+
+
 # ---------------------------------------------------------------------------
 # ✅ ADK Function Tool
 # ---------------------------------------------------------------------------
@@ -110,42 +124,62 @@ async def execute_command(command: str, working_dir: str = "", timeout: int = 60
             env=env,
         )
 
+        stdout_parts: list[str] = []
+        stderr_parts: list[str] = []
+        
+        # Read streams concurrently so we capture partial output even if it times out
+        stdout_task = asyncio.create_task(_read_stream(process.stdout, stdout_parts))
+        stderr_task = asyncio.create_task(_read_stream(process.stderr, stderr_parts))
+
+        timed_out = False
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=effective_timeout,
-            )
+            # wait() instead of communicate() avoids Termux broken pipe hangs
+            await asyncio.wait_for(process.wait(), timeout=effective_timeout)
         except asyncio.TimeoutError:
-            process.kill()
+            timed_out = True
             try:
-                await asyncio.wait_for(process.wait(), timeout=5.0)
-            except asyncio.TimeoutError:
+                process.kill()
+                await asyncio.wait_for(process.wait(), timeout=3.0)
+            except (asyncio.TimeoutError, ProcessLookupError, ChildProcessError, OSError):
                 pass
             finally:
                 if sys.platform != "win32":
                     try:
                         os.waitpid(process.pid, os.WNOHANG)
-                    except (ProcessLookupError, ChildProcessError) as e:
+                    except (ProcessLookupError, ChildProcessError, OSError) as e:
                         logger.debug("Process already reaped or not found: {}", e)
-            return {"error": f"Command timed out after {effective_timeout} seconds"}
-        finally:
-            # Force transport closure to prevent Windows Proactor pipe leaks in tests
-            if hasattr(process, "_transport") and process._transport is not None:
-                process._transport.close()
+        except (ChildProcessError, ProcessLookupError, OSError) as e:
+            # Termux / proot aggressive OS reaping (Errno 10)
+            logger.debug("Process reaped early by OS (Termux/Proot): {}", e)
 
-        output_parts = []
+        # Allow stream readers a brief moment to flush the final bytes
+        try:
+            await asyncio.wait_for(asyncio.gather(stdout_task, stderr_task), timeout=2.0)
+        except Exception:
+            pass
 
-        if stdout:
-            output_parts.append(stdout.decode("utf-8", errors="replace"))
+        # Cleanup transport for Windows to prevent pipe leaks
+        if hasattr(process, "_transport") and process._transport is not None:
+            process._transport.close()
 
-        if stderr:
-            stderr_text = stderr.decode("utf-8", errors="replace")
+        stdout_text = "".join(stdout_parts)
+        stderr_text = "".join(stderr_parts)
+        
+        output_parts_final = []
+        if stdout_text:
+            output_parts_final.append(stdout_text)
+        if stderr_text:
             if stderr_text.strip():
-                output_parts.append(f"STDERR:\n{stderr_text}")
+                output_parts_final.append(f"STDERR:\n{stderr_text}")
 
-        output_parts.append(f"\nExit code: {process.returncode}")
+        if timed_out:
+            output_parts_final.append(f"\n[Error: Command timed out after {effective_timeout} seconds. Partial output captured above.]")
+            exit_code = -1
+        else:
+            exit_code = process.returncode if process.returncode is not None else 0
+            output_parts_final.append(f"\nExit code: {exit_code}")
 
-        result = "\n".join(output_parts) if output_parts else "(no output)"
+        result = "\n".join(output_parts_final) if output_parts_final else "(no output)"
 
         # Head + tail truncation to preserve both start and end of output
         if len(result) > _MAX_OUTPUT:
@@ -156,9 +190,7 @@ async def execute_command(command: str, working_dir: str = "", timeout: int = 60
                 + result[-half:]
             )
 
-        return {"output": result, "exit_code": process.returncode}
+        return {"output": result, "exit_code": exit_code}
 
     except Exception as e:
         return {"error": f"Error executing command: {e}"}
-
-

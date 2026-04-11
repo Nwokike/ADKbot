@@ -239,7 +239,6 @@ class TelegramChannel(BaseChannel):
         if not sid.isdigit() or not username:
             return False
 
-        sid in allow_list or username in allow_list
         is_val_allowed = sid in allow_list or username in allow_list
         if not is_val_allowed:
             logger.warning("Telegram access denied for {} | Check allow_from in config", sender_str)
@@ -585,14 +584,8 @@ class TelegramChannel(BaseChannel):
         """Handle /help command, bypassing ACL so all users can access it."""
         if not update.message:
             return
-        await update.message.reply_text(
-            "🤖 adkbot commands:\n"
-            "/new — Start a new conversation\n"
-            "/stop — Stop the current task\n"
-            "/restart — Restart the bot\n"
-            "/status — Show bot status\n"
-            "/help — Show available commands"
-        )
+        from adkbot.command.builtin import build_help_text
+        await update.message.reply_text(build_help_text())
 
     @staticmethod
     def _sender_id(user) -> str:

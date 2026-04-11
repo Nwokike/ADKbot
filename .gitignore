@@ -12,4 +12,10 @@ build/
 .adkbot/
 *.log
 workspace/
+sessions/
 test_aliases.py
+RELEASE_NOTES.md
+.pytest_cache/
+.ruff_cache/
+*.db
+node_modules/

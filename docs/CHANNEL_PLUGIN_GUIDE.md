@@ -2,7 +2,7 @@
 
 An ADKBot "Channel plugin" allows your agent to talk to different messaging platforms across the web.
 
-Out of the box, ADKBot implements Telegram, Discord, and a CLI loop. But it's trivial to add your own, like Slack, Matrix, or a custom Webhook!
+Out of the box, ADKBot ships with 12+ built-in channels (Telegram, Discord, WhatsApp, Slack, WeChat, Feishu, and more). But it's trivial to add your own via the plugin system!
 
 ## Concept
 
@@ -80,7 +80,7 @@ Create your `pyproject.toml` and register the `adkbot.channels` entry point.
 ```toml
 [project]
 name = "adkbot-channel-webhook"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = ["adkbot", "aiohttp"]
 
 [project.entry-points."adkbot.channels"]

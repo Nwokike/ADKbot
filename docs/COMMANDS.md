@@ -50,12 +50,30 @@ Starts the interactive CLI chat with your AI assistant.
 ---
 
 ### `adkbot gateway`
-Starts the ADKBot server (Matrix bridge) for external chat integrations.
+Starts the ADKBot multi-channel gateway for external chat integrations.
 
-- **Description:** This command spins up the backend that allows your ADKBot agent to communicate over Matrix. This is required if you want to use ADKBot via Telegram, WhatsApp, or other third-party messaging apps bridged through Matrix.
+- **Description:** This command spins up the backend that allows your ADKBot agent to communicate over 12+ chat platforms (Telegram, Discord, WhatsApp, Slack, and more). Enable the channels you want in `~/.adkbot/config.json`.
 - **Aliases:** `adkbot bot`, `adkbot server`
 - **Options:**
   - `--config <path>`: Path to the configuration file to load.
+
+---
+
+## Slash Commands (In-Chat)
+
+These commands work across **all channels** — CLI, Telegram, Discord, WhatsApp, Feishu, Slack, and any custom channel plugin.
+
+| Command | Description |
+|---------|-------------|
+| `/new` | Start a fresh conversation (clears session history) |
+| `/stop` | Cancel all active tasks and subagents |
+| `/model` | Show the current model |
+| `/model <name>` | Switch to a different model (e.g. `/model gemini/gemini-3.1-pro`) |
+| `/status` | Show bot status (uptime, model, token usage) |
+| `/version` | Show the bot version |
+| `/ping` | Check if the bot is alive |
+| `/restart` | Restart the bot process |
+| `/help` | Show available commands |
 
 ---
 
@@ -71,7 +89,13 @@ adkbot onboard
 adkbot agent -m "What files are in the current directory?"
 ```
 
-**3. Starting the Matrix Integration**
+**3. Starting the Multi-Channel Gateway**
 ```bash
 adkbot gateway
 ```
+
+**4. Switch Model Mid-Conversation**
+```
+/model openai/gpt-4o
+```
+

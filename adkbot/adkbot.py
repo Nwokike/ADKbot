@@ -193,6 +193,12 @@ class AdkBot:
             new_message=new_message,
         ):
             events.append(event)
+            # Collect tool names from function-call events
+            if event.content and event.content.parts:
+                for part in event.content.parts:
+                    fc = getattr(part, "function_call", None)
+                    if fc and getattr(fc, "name", None):
+                        tools_used.append(fc.name)
             if event.is_final_response():
                 if event.content and event.content.parts:
                     final_text = event.content.parts[0].text or ""

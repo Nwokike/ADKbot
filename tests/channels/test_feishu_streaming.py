@@ -5,6 +5,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
+pytest.importorskip("lark_oapi", reason="Feishu dependencies not installed (lark-oapi)")
+
 from adkbot.bus.queue import MessageBus
 from adkbot.channels.feishu import FeishuChannel, FeishuConfig, _FeishuStreamBuf
 

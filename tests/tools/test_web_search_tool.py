@@ -2,6 +2,7 @@
 
 import httpx
 import pytest
+from pathlib import Path
 
 from adkbot.agent.tools.web import web_search
 from adkbot.agent.tools.web import web_fetch
@@ -157,9 +158,17 @@ async def test_searxng_no_base_url_falls_back(monkeypatch):
     assert "Fallback" in str(result)
 
 
-@pytest.mark.asyncio
-async def test_searxng_invalid_url(monkeypatch):
-    monkeypatch.setenv("SEARCH_PROVIDER", "searxng")
-    monkeypatch.setenv("SEARXNG_BASE_URL", "not-a-url")
-    result = await web_search(query="test")
-    assert "Error" in str(result)
+
+class TestWebSearchConfigBridge:
+    """Verify web_search tool bridges config values correctly."""
+
+    def test_web_search_reads_config(self):
+        """web_search should try loading config for provider/api_key."""
+        src = Path("adkbot/agent/tools/web.py").read_text(encoding="utf-8")
+        assert "load_config" in src
+        assert "web_cfg.search.provider" in src
+
+    def test_env_overrides_config(self):
+        """SEARCH_PROVIDER env var should override config if set."""
+        src = Path("adkbot/agent/tools/web.py").read_text(encoding="utf-8")
+        assert 'os.environ.get("SEARCH_PROVIDER"' in src

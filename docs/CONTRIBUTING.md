@@ -9,7 +9,7 @@ ADKBot is built to be a fast, modern, and Google ADK-native AI agent platform. W
 ### Reporting Bugs
 If you find a bug, please create an issue on [GitHub](https://github.com/nwokike/ADKbot/issues). Be sure to include:
 * Your operating system.
-* Your Python version (we target Python 3.13+).
+* Your Python version (we target Python 3.11+).
 * Steps to reproduce the bug.
 
 ### Suggesting Enhancements
@@ -31,13 +31,17 @@ We use `uv` for lightning-fast project management, but standard `pip` works perf
 git clone https://github.com/YOUR_USERNAME/ADKbot.git
 cd ADKbot
 
-# Create a virtual environment and install dependencies
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
+# Create a virtual environment and install all dependencies
+uv venv
+uv sync --all-extras
+
+# Or with pip:
+# python -m venv .venv
+# source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# pip install -e ".[all,dev]"
 
 # Run tests
-pytest
+uv run pytest tests/
 ```
 
 ## Community

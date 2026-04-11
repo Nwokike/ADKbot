@@ -36,26 +36,6 @@ class ChannelsConfig(Base):
     )  # Max delivery attempts (initial send included)
 
 
-class ModelConfig(Base):
-    """Simplified model configuration using LiteLLM model strings."""
-
-    model: str = Field(
-        default="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
-        description="LiteLLM model string (e.g., 'gemini/gemini-3.1-pro-preview', 'openrouter/openai/gpt-4')",
-    )
-    api_key: str = Field(
-        default="",
-        description="API key for the model provider. If empty, uses environment variables.",
-    )
-    api_base: str | None = Field(
-        default=None,
-        description="Custom API base URL (optional, for self-hosted or custom endpoints)",
-    )
-    extra_headers: dict[str, str] | None = Field(
-        default=None,
-        description="Custom headers for API requests (e.g., APP-Code for some gateways)",
-    )
-
 
 class AgentDefaults(Base):
     """Default agent configuration."""
@@ -169,13 +149,6 @@ class Config(BaseSettings):
         """Get expanded workspace path."""
         return Path(self.agents.defaults.workspace).expanduser()
 
-    def get_model_config(self) -> ModelConfig:
-        """Get the model configuration for ADK LiteLLM integration."""
-        return ModelConfig(
-            model=self.agents.defaults.model,
-            api_key=self.get_effective_api_key() or "",
-            api_base=self.get_api_base(),
-        )
 
     def get_effective_model(self) -> str:
         """Get the effective model string for LiteLLM."""
@@ -184,12 +157,33 @@ class Config(BaseSettings):
     def get_effective_api_key(self, model: str | None = None) -> str | None:
         """Get the effective API key for the configured model.
 
-        Prioritizes specific environment variables (e.g., GEMINI_API_KEY) so that
-        switching models automatically uses the correct key.
+        API Key Resolution Strategy
+        ===========================
+        ADKBot uses LiteLLM which supports 100+ LLM providers. We cannot map
+        every provider's environment variable, so the resolution follows a
+        two-tier approach:
+
+        Tier 1 — Known providers (.env):
+            Providers with well-known env var names are automatically resolved
+            from ~/.adkbot/.env (e.g., GEMINI_API_KEY, OPENAI_API_KEY). The
+            onboard wizard writes these during setup. Users never need to
+            touch config.json for these.
+
+        Tier 2 — Unknown/custom providers (config.json):
+            For providers not in the map below (e.g., together_ai, anyscale,
+            custom OpenAI-compatible endpoints), users set "apiKey" directly
+            in config.json under agents.defaults. LiteLLM will also check its
+            own env var conventions as a final fallback.
+
+        Priority order:
+            1. config.json agents.defaults.apiKey (explicit override)
+            2. Provider-specific env var from the map below
+            3. Common env vars (OPENAI_API_KEY, LLM_API_KEY)
+            4. LiteLLM's own env var resolution (handles 100+ providers)
         """
         import os
-        
-        # --- BULLETPROOF FIX: Force load the .env file into memory right now ---
+
+        # --- Load .env into environment if not already loaded ---
         try:
             from dotenv import load_dotenv
             from adkbot.config.paths import get_data_dir
@@ -199,13 +193,17 @@ class Config(BaseSettings):
         except ImportError:
             pass  # Fallback if dotenv isn't available
 
-        # 1. Direct config file specification (fallback escape hatch)
+        # 1. Direct config file specification (Tier 2 — escape hatch for
+        #    unknown providers or users who prefer explicit config)
         if getattr(self.agents.defaults, "api_key", ""):
             return self.agents.defaults.api_key.strip("'\"")
 
         model = (model or self.agents.defaults.model).lower()
 
-        # Map model prefixes to specific environment variable names
+        # Tier 1 — Known provider → env var mapping.
+        # These are the providers whose env var names we are certain about.
+        # If a provider is NOT listed here, the user should set apiKey in
+        # config.json or set the env var that LiteLLM expects directly.
         provider_env_map = {
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
@@ -220,8 +218,10 @@ class Config(BaseSettings):
             "huggingface": "HUGGINGFACE_API_KEY",
             "azure": "AZURE_OPENAI_API_KEY",
             "vertex_ai": "GOOGLE_APPLICATION_CREDENTIALS",
-            "ollama": None,  # Local
-            "vllm": None,  # Local
+            "xai": "GROK_API_KEY",
+            "github-copilot": "GITHUB_TOKEN",
+            "ollama": None,  # Local — no API key needed
+            "vllm": None,  # Local — no API key needed
         }
 
         # 2. Specific environment variable for the current model

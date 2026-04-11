@@ -198,7 +198,8 @@ async def web_search(query: str, count: int = 5) -> dict:
     """Search the web for information. Returns titles, URLs, and snippets.
 
     Supports multiple search providers: DuckDuckGo (default), Brave, Tavily,
-    SearXNG, and Jina. Configure via SEARCH_PROVIDER env var.
+    SearXNG, and Jina. Configure via config.json (tools.web.search.provider)
+    or SEARCH_PROVIDER env var.
 
     Args:
         query: The search query string.
@@ -207,18 +208,32 @@ async def web_search(query: str, count: int = 5) -> dict:
     Returns:
         A dict with the search results text.
     """
-    provider = os.environ.get("SEARCH_PROVIDER", "duckduckgo").strip().lower()
+    # Bridge config → env: prefer config, fall back to env var
+    provider = "duckduckgo"
+    search_api_key = ""
+    search_base_url = ""
+    try:
+        from adkbot.config.loader import load_config
+        cfg = load_config()
+        web_cfg = cfg.tools.web
+        provider = web_cfg.search.provider or provider
+        search_api_key = web_cfg.search.api_key or ""
+        search_base_url = web_cfg.search.base_url or ""
+    except Exception:
+        pass
+    # Env var overrides config if set
+    provider = os.environ.get("SEARCH_PROVIDER", provider).strip().lower()
     n = min(max(count, 1), 10)
     proxy = os.environ.get("HTTP_PROXY") or os.environ.get("HTTPS_PROXY")
 
     if provider == "brave":
-        result = await _search_brave(query, n, proxy=proxy)
+        result = await _search_brave(query, n, api_key=search_api_key, proxy=proxy)
     elif provider == "tavily":
-        result = await _search_tavily(query, n, proxy=proxy)
+        result = await _search_tavily(query, n, api_key=search_api_key, proxy=proxy)
     elif provider == "searxng":
-        result = await _search_searxng(query, n, proxy=proxy)
+        result = await _search_searxng(query, n, base_url=search_base_url, proxy=proxy)
     elif provider == "jina":
-        result = await _search_jina(query, n, proxy=proxy)
+        result = await _search_jina(query, n, api_key=search_api_key, proxy=proxy)
     else:
         # Default: DuckDuckGo
         result = await _search_duckduckgo(query, n, proxy)

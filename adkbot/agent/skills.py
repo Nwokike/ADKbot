@@ -136,6 +136,11 @@ class SkillsLoader:
 
             lines.append("  </skill>")
         lines.append("</skills>")
+        
+        # Explicitly tell the agent about ClawHub
+        lines.append("\nTo discover and install more skills, use ClawHub (https://clawhub.ai).")
+        lines.append("Search: `npx --yes clawhub@latest search \"<query>\"`")
+        lines.append("Install: `npx --yes clawhub@latest install <slug> --workdir <your workspace>`")
 
         return "\n".join(lines)
 

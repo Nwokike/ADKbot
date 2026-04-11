@@ -9,7 +9,9 @@ ADKBot provides a complete Software Development Kit (SDK) wrapping Google's Agen
 Ensure you have ADKBot installed in your environment:
 
 ```bash
-pip install -e .
+pip install adkbot
+# Or with all extras:
+pip install "adkbot[all]"
 ```
 
 ## Quick Start
@@ -85,11 +87,14 @@ async def main():
 ADKBot maps LiteLLM routing via local environment variables. The SDK operates exactly the same as the CLI wizard regarding API keys. 
 
 Key Environment Map:
-*   `GEMINI_API_KEY`: Used by default `gemini/gemma-4-31b`
+*   `GEMINI_API_KEY`: Used by default `gemini/gemini-3.1-pro-preview`
+*   `NVIDIA_NIM_API_KEY`: NVIDIA NIM models
 *   `OPENAI_API_KEY`
 *   `ANTHROPIC_API_KEY`
-*   `NVIDIA_NIM_API_KEY`
 *   `GROQ_API_KEY`
+*   `GROK_API_KEY`: xAI Grok models
+
+> **Note:** ADKBot uses LiteLLM which supports 100+ providers. Known providers have their API keys automatically resolved from `~/.adkbot/.env`. For providers not in the built-in map, set `apiKey` directly in `config.json`.
 
 To force settings via code:
 
@@ -98,4 +103,4 @@ import os
 os.environ["GEMINI_API_KEY"] = "your_actual_token"
 ```
 
-*For more advanced capabilities or deploying custom custom routers, refer to the ADK Documentation under `google.adk`.*
+*For more advanced capabilities or deploying custom routers, refer to the ADK Documentation under `google.adk`.*

@@ -66,6 +66,28 @@ pip install adkbot
 ```
 
 <details>
+<summary><b>Install with additional channel extras</b></summary>
+
+The core install includes **Telegram** and **WhatsApp** out of the box. For other channels, install the extras you need:
+
+```bash
+# Install with Discord support
+pip install "adkbot[discord]"
+
+# Install with multiple channels
+pip install "adkbot[discord,slack,feishu]"
+
+# Install everything (all channels + tools)
+pip install "adkbot[all]"
+```
+
+Available extras: `discord`, `slack`, `feishu`, `dingtalk`, `qq`, `mochat`, `matrix`, `weixin`, `wecom`, `socks`, `api`.
+
+> **Note:** When configuring a channel during `adkbot onboard`, the wizard will automatically detect if its SDK is missing and offer to install it for you.
+
+</details>
+
+<details>
 <summary><b>Install from source (for development)</b></summary>
 
 ```bash

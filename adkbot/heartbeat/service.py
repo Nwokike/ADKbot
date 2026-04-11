@@ -55,6 +55,19 @@ _HEARTBEAT_TOOL = [
     }
 ]
 
+
+def heartbeat_decision(action: str, tasks: str = "") -> dict:
+    """Report heartbeat decision after reviewing tasks.
+
+    Args:
+        action: 'skip' if nothing to do, 'run' if there are active tasks.
+        tasks: Natural-language summary of active tasks (required for 'run').
+
+    Returns:
+        A dict with the heartbeat decision.
+    """
+    return {"action": action, "tasks": tasks}
+
 _SYSTEM_PROMPT = (
     "You are a heartbeat agent. You will be given the current time and "
     "the contents of a HEARTBEAT.md file. "
@@ -104,12 +117,13 @@ class AdkHeartbeatAgent:
             api_base=api_base,
         )
 
-        # Create LlmAgent for heartbeat decisions
+        # Create LlmAgent for heartbeat decisions with the decision tool registered
         self.agent = LlmAgent(
             name="heartbeat_decision",
             model=litellm,
             instruction=_SYSTEM_PROMPT,
             description="Decides whether heartbeat tasks need to be executed",
+            tools=[heartbeat_decision],
         )
 
         # Create runner with in-memory session service
@@ -219,6 +233,14 @@ class AdkHeartbeatAgent:
         except Exception:
             logger.exception("heartbeat decision failed, defaulting to skip")
             return "skip", ""
+        finally:
+            # Clean up the ephemeral heartbeat session to prevent leaks
+            try:
+                await self.session_service.delete_session(
+                    app_name=_APP_NAME, user_id=_USER_ID, session_id=session_id
+                )
+            except Exception:
+                pass  # Best-effort cleanup
 
 
 class HeartbeatService:

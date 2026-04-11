@@ -8,9 +8,8 @@ Reference: https://google.github.io/adk-docs/callbacks/
 
 from __future__ import annotations
 
-import copy
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 from loguru import logger
 

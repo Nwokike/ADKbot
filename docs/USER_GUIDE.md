@@ -11,7 +11,13 @@ ADKBot is your personal AI assistant. It connects directly to your favorite mess
 If you're reading this, you likely already have the files. You just need to install ADKBot.
 Open your terminal or command prompt and run:
 ```bash
-pip install -e .
+pip install adkbot
+```
+
+If you want to use a specific chat platform, install with the appropriate extra:
+```bash
+pip install "adkbot[telegram]"    # For Telegram
+pip install "adkbot[all]"          # Everything
 ```
 
 ### 2. Onboarding
@@ -22,7 +28,7 @@ adkbot onboard
 ```
 
 The wizard will ask you:
-1. Which AI model you want to use (e.g. Gemini 2.0 Flash, Claude 3.5 Sonnet, Gemma 4).
+1. Which AI model you want to use (e.g. NVIDIA NIM, Gemini, Claude, GPT, Gemma 4).
 2. Your API key for that model (it will provide a link where you can sign up and get one for free or cheap).
 3. Where to store your configuration.
 

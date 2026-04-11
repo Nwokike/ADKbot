@@ -241,7 +241,7 @@ class AdkAgentLoop:
 
     def _get_tools(self) -> list[Callable]:
         """Get tools as ADK-compatible functions."""
-        return get_all_tools()
+        return get_all_tools(self._config)
 
     # -------------------------------------------------------------------------
     # ADK Callback wrappers (Now fully kwarg-safe)
@@ -433,10 +433,13 @@ class AdkAgentLoop:
         }
 
     async def _save_session_state(self, session_key: str) -> None:
-        """Save session state to persistent storage."""
-        # The ADK session service handles persistence automatically
-        # We just need to ensure any legacy state is synced
+        """Save session state to persistent storage.
+
+        The ADK session service handles persistence automatically.
+        This hook exists for subclasses that need post-turn persistence.
+        """
         pass
+
 
     # -------------------------------------------------------------------------
     # Main loop
@@ -493,47 +496,7 @@ class AdkAgentLoop:
         self._running = False
         logger.info("Stopping ADK Agent Loop")
 
-    # -------------------------------------------------------------------------
-    # Backward compatibility methods (for legacy AgentLoop interface)
-    # -------------------------------------------------------------------------
 
-    async def _connect_mcp(self) -> None:
-        """Connect to MCP servers (backward compatibility stub).
-
-        Note: MCP connection is handled differently in ADK mode.
-        This method exists for backward compatibility with legacy AgentLoop.
-        """
-        if self._mcp_connected or not hasattr(self, "_mcp_servers"):
-            return
-        # MCP connection would be handled via ADK tools if needed
-        logger.debug("MCP connection requested (ADK mode - stub)")
-        self._mcp_connected = True
-
-    async def close_mcp(self) -> None:
-        """Close MCP connections (backward compatibility stub)."""
-        if self._mcp_stack:
-            try:
-                await self._mcp_stack.aclose()
-            except Exception:
-                pass
-        self._mcp_stack = None
-        self._mcp_connected = False
-        logger.debug("MCP connections closed")
-
-    @property
-    def tools(self):
-        """Access to tools registry (backward compatibility stub).
-
-        Note: ADK uses plain function tools, not a registry.
-        This property exists for backward compatibility with legacy AgentLoop.
-        """
-
-        # Return a minimal compatibility shim
-        class _ToolsShim:
-            def get(self, name: str):
-                return None
-
-        return _ToolsShim()
 
     @property
     def channels_config(self):

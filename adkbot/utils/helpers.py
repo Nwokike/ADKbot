@@ -10,14 +10,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import tiktoken
 from loguru import logger
+
+
+def _count_tokens(text: str) -> int:
+    """Count tokens using LiteLLM if available, else heuristic (~4 chars/token)."""
+    try:
+        import litellm
+        return litellm.token_counter(model="gpt-4", text=text)
+    except Exception:
+        return max(1, len(text) // 4)
 
 
 def strip_think(text: str) -> str:
     """Remove <think>…</think> blocks and any unclosed trailing <think> tag."""
-    text = re.sub(r"<think>[\s\S]*?</think>", "", text)
-    text = re.sub(r"<think>[\s\S]*$", "", text)
+    text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"<think>[\s\S]*$", "", text, flags=re.IGNORECASE)
     return text.strip()
 
 
@@ -286,13 +294,12 @@ def estimate_prompt_tokens(
     messages: list[dict[str, Any]],
     tools: list[dict[str, Any]] | None = None,
 ) -> int:
-    """Estimate prompt tokens with tiktoken.
+    """Estimate prompt tokens using LiteLLM token counter.
 
     Counts all fields that providers send to the LLM: content, tool_calls,
     reasoning_content, tool_call_id, name, plus per-message framing overhead.
     """
     try:
-        enc = tiktoken.get_encoding("cl100k_base")
         parts: list[str] = []
         for msg in messages:
             content = msg.get("content")
@@ -322,7 +329,7 @@ def estimate_prompt_tokens(
             parts.append(json.dumps(tools, ensure_ascii=False))
 
         per_message_overhead = len(messages) * 4
-        return len(enc.encode("\n".join(parts))) + per_message_overhead
+        return _count_tokens("\n".join(parts)) + per_message_overhead
     except Exception:
         return 0
 
@@ -359,8 +366,7 @@ def estimate_message_tokens(message: dict[str, Any]) -> int:
     if not payload:
         return 4
     try:
-        enc = tiktoken.get_encoding("cl100k_base")
-        return max(4, len(enc.encode(payload)) + 4)
+        return max(4, _count_tokens(payload) + 4)
     except Exception:
         return max(4, len(payload) // 4 + 4)
 
@@ -383,7 +389,7 @@ def estimate_prompt_tokens_chain(
 
     estimated = estimate_prompt_tokens(messages, tools)
     if estimated > 0:
-        return int(estimated), "tiktoken"
+        return int(estimated), "litellm"
     return 0, "none"
 
 

@@ -114,6 +114,8 @@ if DISCORD_AVAILABLE:
                 ("stop", "Stop the current task", "/stop"),
                 ("restart", "Restart the bot", "/restart"),
                 ("status", "Show bot status", "/status"),
+                ("version", "Show bot version", "/version"),
+                ("ping", "Check if the bot is alive", "/ping"),
             )
 
             for name, description, command_text in commands:
@@ -131,6 +133,15 @@ if DISCORD_AVAILABLE:
                     await self._reply_ephemeral(interaction, "You are not allowed to use this bot.")
                     return
                 await self._reply_ephemeral(interaction, build_help_text())
+
+            @self.tree.command(name="model", description="Show or switch the active model")
+            @app_commands.describe(model_name="LiteLLM model string (e.g. gemini/gemini-3.1-pro)")
+            async def model_command(
+                interaction: discord.Interaction,
+                model_name: str | None = None,
+            ) -> None:
+                cmd_text = f"/model {model_name}" if model_name else "/model"
+                await self._forward_slash_command(interaction, cmd_text)
 
             @self.tree.error
             async def on_app_command_error(

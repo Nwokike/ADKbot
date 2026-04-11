@@ -151,7 +151,7 @@ class AdkSubagentManager:
             session_service = InMemorySessionService()
 
             # Create session
-            session = session_service.create_session(
+            session = await session_service.create_session(
                 app_name=self.APP_NAME,
                 user_id="subagent",
                 session_id=task_id,
@@ -307,7 +307,7 @@ Execute the task and report your findings.
         )
 
         # Publish to bus
-        await self.bus.publish("outbound", msg)
+        await self.bus.publish_outbound(msg)
 
     async def cancel_by_session(self, session_key: str) -> int:
         """Cancel all tasks for a session.

@@ -52,6 +52,21 @@ _EVALUATE_TOOL = [
     }
 ]
 
+
+def evaluate_notification(should_notify: bool, reason: str = "") -> dict:
+    """Decide whether the user should be notified about this background task result.
+
+    Args:
+        should_notify: true = result contains actionable/important info the user should see;
+                       false = routine or empty, safe to suppress.
+        reason: One-sentence reason for the decision.
+
+    Returns:
+        A dict with the notification decision.
+    """
+    return {"should_notify": should_notify, "reason": reason}
+
+
 _SYSTEM_PROMPT = (
     "You are a notification gate for a background agent. "
     "You will be given the original task and the agent's response. "
@@ -96,12 +111,13 @@ class AdkEvaluationAgent:
             api_base=api_base,
         )
 
-        # Create LlmAgent for evaluation
+        # Create LlmAgent for evaluation with the evaluation tool registered
         self.agent = LlmAgent(
             name="notification_evaluator",
             model=litellm,
             instruction=_SYSTEM_PROMPT,
             description="Evaluates whether background task results should be delivered to users",
+            tools=[evaluate_notification],
         )
 
         # Create runner with in-memory session service
@@ -215,6 +231,14 @@ class AdkEvaluationAgent:
         except Exception:
             logger.exception("evaluate_response failed, defaulting to notify")
             return True
+        finally:
+            # Clean up the ephemeral evaluation session to prevent leaks
+            try:
+                await self.session_service.delete_session(
+                    app_name=_APP_NAME, user_id=_USER_ID, session_id=session_id
+                )
+            except Exception:
+                pass  # Best-effort cleanup
 
 
 # Cache for evaluation agents to avoid recreating for each call

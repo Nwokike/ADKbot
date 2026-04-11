@@ -92,14 +92,68 @@ async def cmd_help(ctx: CommandContext) -> OutboundMessage:
     )
 
 
+async def cmd_model(ctx: CommandContext) -> OutboundMessage:
+    """Show the current model or switch to a new one.
+
+    Usage:
+        /model           — Show the current model
+        /model <name>    — Switch to a new model
+    """
+    loop = ctx.loop
+    msg = ctx.msg
+    new_model = ctx.args.strip() if ctx.args else ""
+
+    if not new_model:
+        # Show current model
+        return OutboundMessage(
+            channel=msg.channel,
+            chat_id=msg.chat_id,
+            content=f"🤖 Current model: `{loop.model}`",
+            metadata={"render_as": "text"},
+        )
+
+    # Switch model
+    old_model = loop.model
+    loop.model = new_model
+    return OutboundMessage(
+        channel=msg.channel,
+        chat_id=msg.chat_id,
+        content=f"✅ Model changed: `{old_model}` → `{new_model}`",
+        metadata={"render_as": "text"},
+    )
+
+
+async def cmd_version(ctx: CommandContext) -> OutboundMessage:
+    """Show the bot version."""
+    return OutboundMessage(
+        channel=ctx.msg.channel,
+        chat_id=ctx.msg.chat_id,
+        content=f"🤖 ADKBot v{__version__}",
+        metadata={"render_as": "text"},
+    )
+
+
+async def cmd_ping(ctx: CommandContext) -> OutboundMessage:
+    """Reply with pong — useful for checking if the bot is alive."""
+    return OutboundMessage(
+        channel=ctx.msg.channel,
+        chat_id=ctx.msg.chat_id,
+        content="🏓 Pong!",
+        metadata={"render_as": "text"},
+    )
+
+
 def build_help_text() -> str:
     """Build canonical help text shared across channels."""
     lines = [
         "🤖 adkbot commands:",
         "/new — Start a new conversation",
         "/stop — Stop the current task",
-        "/restart — Restart the bot",
+        "/model — Show or switch the active model",
         "/status — Show bot status",
+        "/version — Show bot version",
+        "/ping — Check if the bot is alive",
+        "/restart — Restart the bot",
         "/help — Show available commands",
     ]
     return "\n".join(lines)
@@ -111,5 +165,9 @@ def register_builtin_commands(router: CommandRouter) -> None:
     router.priority("/restart", cmd_restart)
     router.priority("/status", cmd_status)
     router.exact("/new", cmd_new)
-    router.exact("/status", cmd_status)
     router.exact("/help", cmd_help)
+    router.exact("/version", cmd_version)
+    router.exact("/ping", cmd_ping)
+    # /model uses prefix so "/model gemini/..." works
+    router.prefix("/model", cmd_model)
+

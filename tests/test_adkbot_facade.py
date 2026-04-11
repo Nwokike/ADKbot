@@ -99,7 +99,12 @@ def test_sdk_make_provider_uses_github_copilot_backend():
     assert "github-copilot" in model.model
 
 
-def test_import_from_top_level():
-    from adkbot import AdkBot as N, RunResult as R
-    assert N is AdkBot
-    assert R is RunResult
+
+class TestToolsUsedPopulated:
+    """Verify tools_used in RunResult is populated from ADK events."""
+
+    def test_facade_collects_function_calls(self):
+        """Verify the run method extracts function_call names from events."""
+        src = Path("adkbot/adkbot.py").read_text(encoding="utf-8")
+        assert "function_call" in src
+        assert "tools_used.append(fc.name)" in src

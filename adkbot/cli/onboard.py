@@ -12,6 +12,7 @@ Usage:
     adkbot onboard --skip-wizard  # Creates default config
 """
 
+import importlib
 import json
 import os
 from dataclasses import dataclass
@@ -254,13 +255,91 @@ def _save_api_key_to_dotenv(env_var: str, api_key: str) -> None:
     console.print(f"[green]✓ Saved {env_var} to {dotenv_path}[/green]")
 
 
+# Channel name → (required Python module, pip extra name)
+_CHANNEL_SDK_MAP: dict[str, tuple[str, str]] = {
+    "discord": ("discord", "discord"),
+    "feishu": ("lark_oapi", "feishu"),
+    "slack": ("slack_sdk", "slack"),
+    "dingtalk": ("dingtalk_stream", "dingtalk"),
+    "qq": ("botpy", "qq"),
+    "matrix": ("nio", "matrix"),
+    "wecom": ("wecom_aibot_sdk", "wecom"),
+    "weixin": ("Crypto", "weixin"),
+    "mochat": ("socketio", "mochat"),
+    # telegram, whatsapp, email — no extra needed (core or no deps)
+}
+
+
+def _is_channel_sdk_installed(channel_name: str) -> bool:
+    """Check if the required SDK for a channel is installed."""
+    if channel_name not in _CHANNEL_SDK_MAP:
+        return True  # No extra needed (telegram, whatsapp, email)
+
+    module_name, _ = _CHANNEL_SDK_MAP[channel_name]
+    try:
+        importlib.import_module(module_name)
+        return True
+    except ImportError:
+        return False
+
+
+def _offer_install_channel(channel_name: str) -> bool:
+    """Prompt the user to install a missing channel SDK. Returns True if installed successfully."""
+    if channel_name not in _CHANNEL_SDK_MAP:
+        return True
+
+    _, extra_name = _CHANNEL_SDK_MAP[channel_name]
+
+    console.print(
+        f"\n[yellow]The {channel_name.title()} channel requires additional dependencies "
+        f"that are not currently installed.[/yellow]"
+    )
+
+    install = questionary.confirm(
+        f"Install {channel_name.title()} dependencies now? (pip install \"adkbot[{extra_name}]\")",
+        default=True,
+    ).ask()
+
+    if not install:
+        console.print("[dim]Skipping installation.[/dim]")
+        return False
+
+    import subprocess
+    import sys
+
+    console.print(f"[cyan]Installing adkbot[{extra_name}]...[/cyan]")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pip", "install", f"adkbot[{extra_name}]"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode == 0:
+            console.print(f"[green]✓ {channel_name.title()} dependencies installed successfully![/green]")
+            # Force reimport
+            importlib.invalidate_caches()
+            return True
+        else:
+            console.print(f"[red]Installation failed:[/red]\n{result.stderr[-500:]}")
+            return False
+    except subprocess.TimeoutExpired:
+        console.print("[red]Installation timed out. Try running manually:[/red]")
+        console.print(f'  pip install "adkbot[{extra_name}]"')
+        return False
+    except Exception as e:
+        console.print(f"[red]Installation error: {e}[/red]")
+        return False
+
+
 def _configure_channels(config: Config) -> None:
     """Configure chat channels."""
-    from adkbot.channels.registry import discover_all
+    from adkbot.channels.registry import discover_channel_names
 
-    channels = discover_all()
-    if not channels:
-        console.print("[dim]No channels available in registry[/dim]")
+    # Show ALL channel names (even those whose SDKs aren't installed yet)
+    all_channel_names = discover_channel_names()
+    if not all_channel_names:
+        console.print("[dim]No channels found in registry[/dim]")
         return
 
     while True:
@@ -268,17 +347,28 @@ def _configure_channels(config: Config) -> None:
         console.print(Panel("[bold]Chat Channels[/bold]\nConfigure integrations with chat platforms.", border_style="blue"))
 
         choices = []
-        for name, channel_cls in channels.items():
+        for name in sorted(all_channel_names):
             channel_config = getattr(config.channels, name, None)
-            
+
             enabled = False
             if isinstance(channel_config, BaseModel):
                 enabled = getattr(channel_config, "enabled", False)
             elif isinstance(channel_config, dict):
                 enabled = channel_config.get("enabled", False)
 
-            status = "✓" if enabled else "○"
-            choices.append(Choice(f"{status} {name.title()}", value=name))
+            # Check if the SDK is installed
+            sdk_installed = _is_channel_sdk_installed(name)
+            if enabled:
+                status = "✓"
+            elif not sdk_installed:
+                status = "⬡"  # Not installed
+            else:
+                status = "○"
+
+            label = f"{status} {name.title()}"
+            if not sdk_installed:
+                label += " [dim](not installed)[/dim]"
+            choices.append(Choice(label, value=name))
 
         choices.append(Choice("← Back to Main Menu", value="back"))
 
@@ -291,7 +381,19 @@ def _configure_channels(config: Config) -> None:
         if answer is None or answer == "back":
             break
 
-        _configure_single_channel(config, answer, channels[answer])
+        # Auto-detect and offer to install missing SDK
+        if not _is_channel_sdk_installed(answer):
+            if not _offer_install_channel(answer):
+                continue  # User declined or install failed, go back to menu
+
+        # Now try to load the channel class
+        try:
+            from adkbot.channels.registry import load_channel_class
+            channel_cls = load_channel_class(answer)
+            _configure_single_channel(config, answer, channel_cls)
+        except ImportError as e:
+            console.print(f"\n[red]Could not load {answer.title()}: {e}[/red]")
+            questionary.text("Press Enter to continue...").ask()
 
 
 def _get_config_class_for_channel(channel_cls: type) -> type | None:

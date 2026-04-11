@@ -130,10 +130,10 @@ def get_all_tools(config: Any = None) -> list[Callable]:
 def _load_mcp_tools(config: Any) -> list[Callable]:
     """Load MCP tools from configured MCP servers.
 
-    MCP tools are dynamically registered based on config.tools.mcp.servers.
+    MCP tools are dynamically registered based on config.tools.mcp_servers.
     """
     try:
-        mcp_servers = config.tools.mcp.servers
+        mcp_servers = config.tools.mcp_servers
         if not mcp_servers:
             return []
 

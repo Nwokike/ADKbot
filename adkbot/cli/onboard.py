@@ -15,6 +15,7 @@ Usage:
 import importlib
 import json
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, get_args, get_origin
@@ -370,12 +371,15 @@ def _offer_install_channel(channel_name: str) -> bool:
     _, extra_name = _CHANNEL_SDK_MAP[channel_name]
 
     console.print(
-        f"\n[yellow]The {channel_name.title()} channel requires additional dependencies "
-        f"that are not currently installed.[/yellow]"
+        f"\n[yellow]The {channel_name.title()} channel requires additional dependencies.[/yellow]\n\n"
+        f"[dim]Depending on how you installed adkbot, you need one of these commands:[/dim]\n"
+        f"  • uv:   [cyan]uv tool install adkbot --with \"adkbot[{extra_name}]\"[/cyan]\n"
+        f"  • pipx: [cyan]pipx inject adkbot \"adkbot[{extra_name}]\"[/cyan]\n"
+        f"  • pip:  [cyan]pip install \"adkbot[{extra_name}]\"[/cyan]\n"
     )
 
     install = questionary.confirm(
-        f"Install {channel_name.title()} dependencies now? (pip install \"adkbot[{extra_name}]\")",
+        "Attempt auto-install now? (May fail in strict uv/pipx environments)",
         default=True,
     ).ask()
 
@@ -386,28 +390,39 @@ def _offer_install_channel(channel_name: str) -> bool:
     import subprocess
     import sys
 
-    console.print(f"[cyan]Installing adkbot[{extra_name}]...[/cyan]")
+    # Smart detection: Use `uv pip` if uv is available, otherwise fallback to `python -m pip`
+    if shutil.which("uv"):
+        cmd = ["uv", "pip", "install", f"adkbot[{extra_name}]"]
+    else:
+        cmd = [sys.executable, "-m", "pip", "install", f"adkbot[{extra_name}]"]
+
+    console.print(f"\n[cyan]Running: {' '.join(cmd)}...[/cyan]")
     try:
         result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", f"adkbot[{extra_name}]"],
+            cmd,
             capture_output=True,
             text=True,
             timeout=120,
         )
         if result.returncode == 0:
             console.print(f"[green]✓ {channel_name.title()} dependencies installed successfully![/green]")
-            # Force reimport
             importlib.invalidate_caches()
+            questionary.text("Press Enter to continue...").ask()
             return True
         else:
-            console.print(f"[red]Installation failed:[/red]\n{result.stderr[-500:]}")
+            console.print(f"\n[red]Auto-installation failed:[/red]\n{result.stderr.strip()[-800:]}")
+            console.print(f"\n[yellow]Please copy the appropriate command above, run it manually in your terminal, and restart adkbot.[/yellow]")
+            questionary.text("Press Enter to return to menu...").ask()
             return False
+            
     except subprocess.TimeoutExpired:
-        console.print("[red]Installation timed out. Try running manually:[/red]")
-        console.print(f'  pip install "adkbot[{extra_name}]"')
+        console.print("\n[red]Installation timed out.[/red]")
+        console.print(f"[yellow]Please run the installation manually using the commands above.[/yellow]")
+        questionary.text("Press Enter to return to menu...").ask()
         return False
     except Exception as e:
-        console.print(f"[red]Installation error: {e}[/red]")
+        console.print(f"\n[red]Installation error: {e}[/red]")
+        questionary.text("Press Enter to return to menu...").ask()
         return False
 
 

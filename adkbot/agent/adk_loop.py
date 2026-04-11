@@ -6,6 +6,7 @@ This module provides a modern ADK-compliant agent execution loop that:
 - Preserves message bus integration for channel handling
 - Supports streaming responses via callbacks
 - Integrates with ADK SessionService and MemoryService
+- Includes self-healing retries for LLM tool hallucinations
 
 Reference: https://google.github.io/adk-docs/runtime/
 """
@@ -71,6 +72,7 @@ class AdkAgentLoop:
     - Uses ADK's SessionService for state management
     - Uses ADK's callbacks instead of AgentHook
     - Tools are plain functions (not Tool classes)
+    - Incorporates self-healing retry logic for tool hallucinations
 
     Example:
         >>> loop = AdkAgentLoop(
@@ -241,10 +243,10 @@ class AdkAgentLoop:
 
     def _get_tools(self) -> list[Callable]:
         """Get tools as ADK-compatible functions."""
-        return get_all_tools(self._config)
+        return get_all_tools()
 
     # -------------------------------------------------------------------------
-    # ADK Callback wrappers (Now fully kwarg-safe)
+    # ADK Callback wrappers (Fully kwarg-safe to prevent crash bugs)
     # -------------------------------------------------------------------------
 
     async def _before_agent_callback(self, *args, **kwargs) -> Any:
@@ -293,7 +295,7 @@ class AdkAgentLoop:
         on_stream_end: Callable[..., Coroutine[None, None, None]] | None = None,
     ) -> str:
         """
-        Process an incoming message using ADK Runner.
+        Process an incoming message using ADK Runner. Includes self-healing for hallucinations.
 
         Args:
             message: The inbound message to process
@@ -348,29 +350,57 @@ class AdkAgentLoop:
         )
 
         try:
-            # Run agent and collect events
-            async for event in self.runner.run_async(
-                user_id=user_id,
-                session_id=session_id,
-                new_message=user_content,
-            ):
-                # Handle streaming text
-                if event.content and event.content.parts:
-                    for part in event.content.parts:
-                        if hasattr(part, "text") and part.text:
-                            streaming_parts.append(part.text)
-                            if self._on_stream:
-                                try:
-                                    await self._on_stream(part.text)
-                                except Exception as e:
-                                    logger.debug("Stream callback error: {}", e)
+            max_retries = 3
+            for attempt in range(max_retries):
+                turn_failed_due_to_hallucination = False
+                
+                try:
+                    # Run agent and collect events
+                    async for event in self.runner.run_async(
+                        user_id=user_id,
+                        session_id=session_id,
+                        new_message=user_content,
+                    ):
+                        # Handle streaming text
+                        if event.content and event.content.parts:
+                            for part in event.content.parts:
+                                if hasattr(part, "text") and part.text:
+                                    streaming_parts.append(part.text)
+                                    if self._on_stream:
+                                        try:
+                                            await self._on_stream(part.text)
+                                        except Exception as e:
+                                            logger.debug("Stream callback error: {}", e)
 
-                # Check for final response
-                if event.is_final_response():
-                    if event.content and event.content.parts:
-                        for part in event.content.parts:
-                            if hasattr(part, "text") and part.text:
-                                final_response = part.text
+                        # Check for final response
+                        if event.is_final_response():
+                            if event.content and event.content.parts:
+                                for part in event.content.parts:
+                                    if hasattr(part, "text") and part.text:
+                                        final_response = part.text
+
+                except ValueError as ve:
+                    error_str = str(ve)
+                    # Self-Healing: Intercept ADK throwing a Tool Not Found ValueError
+                    if "Tool" in error_str and "not found" in error_str:
+                        logger.warning(
+                            "LLM hallucinated a tool (attempt {}/{}). Injecting correction. Error: {}", 
+                            attempt + 1, max_retries, error_str.split('\n')[0]
+                        )
+                        # We create a new user message containing the error to feed back into the session
+                        user_content = types.Content(
+                            role="user",
+                            parts=[types.Part(text=f"SYSTEM NOTIFICATION: {error_str}\n\nPlease correct your tool call name. If you simply wanted to reply to the user, DO NOT call any tool—just output your message as plain text.")]
+                        )
+                        turn_failed_due_to_hallucination = True
+                        
+                        if attempt == max_retries - 1:
+                            raise  # We gave it 3 tries, it's still hallucinating, let the user see the error
+                    else:
+                        raise  # It was some other ValueError, re-raise it immediately
+
+                if not turn_failed_due_to_hallucination:
+                    break  # Success! The generator completed normally without a hallucination
 
             # Notify stream end
             if self._on_stream_end and streaming_parts:
@@ -433,13 +463,10 @@ class AdkAgentLoop:
         }
 
     async def _save_session_state(self, session_key: str) -> None:
-        """Save session state to persistent storage.
-
-        The ADK session service handles persistence automatically.
-        This hook exists for subclasses that need post-turn persistence.
-        """
+        """Save session state to persistent storage."""
+        # The ADK session service handles persistence automatically
+        # We just need to ensure any legacy state is synced
         pass
-
 
     # -------------------------------------------------------------------------
     # Main loop
@@ -496,7 +523,47 @@ class AdkAgentLoop:
         self._running = False
         logger.info("Stopping ADK Agent Loop")
 
+    # -------------------------------------------------------------------------
+    # Backward compatibility methods (for legacy AgentLoop interface)
+    # -------------------------------------------------------------------------
 
+    async def _connect_mcp(self) -> None:
+        """Connect to MCP servers (backward compatibility stub).
+
+        Note: MCP connection is handled differently in ADK mode.
+        This method exists for backward compatibility with legacy AgentLoop.
+        """
+        if self._mcp_connected or not hasattr(self, "_mcp_servers"):
+            return
+        # MCP connection would be handled via ADK tools if needed
+        logger.debug("MCP connection requested (ADK mode - stub)")
+        self._mcp_connected = True
+
+    async def close_mcp(self) -> None:
+        """Close MCP connections (backward compatibility stub)."""
+        if self._mcp_stack:
+            try:
+                await self._mcp_stack.aclose()
+            except Exception:
+                pass
+        self._mcp_stack = None
+        self._mcp_connected = False
+        logger.debug("MCP connections closed")
+
+    @property
+    def tools(self):
+        """Access to tools registry (backward compatibility stub).
+
+        Note: ADK uses plain function tools, not a registry.
+        This property exists for backward compatibility with legacy AgentLoop.
+        """
+
+        # Return a minimal compatibility shim
+        class _ToolsShim:
+            def get(self, name: str):
+                return None
+
+        return _ToolsShim()
 
     @property
     def channels_config(self):

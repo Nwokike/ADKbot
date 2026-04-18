@@ -103,18 +103,18 @@ ADVANCED_CHANNEL_FIELDS = {
 CHANNEL_FIELD_HINTS = {
     "telegram": {
         "token": "Create a bot via @BotFather on Telegram and paste the HTTP API Token here.",
-        "allow_from": "List of Telegram Usernames or IDs allowed to talk to the bot (comma-separated, leave blank for anyone).",
+        "allow_from": "List of Telegram Usernames or IDs allowed to talk to the bot (comma-separated, leave blank to deny all).",
         "group_policy": "If added to a group: 'mention' (only replies when tagged) or 'open' (replies to everything)."
     },
     "discord": {
         "token": "Bot Token from the Discord Developer Portal -> Bot -> Reset Token.",
-        "allow_from": "List of Discord User IDs allowed to talk to the bot (comma-separated, leave blank for anyone).",
+        "allow_from": "List of Discord User IDs allowed to talk to the bot (comma-separated, leave blank to deny all).",
         "group_policy": "If added to a server: 'mention' (only replies when tagged) or 'open' (replies to everything)."
     },
     "whatsapp": {
         "bridge_url": "The local WebSocket URL for the Node.js bridge (default: ws://localhost:3001).",
         "bridge_token": "Optional password to secure the local bridge (leave blank normally).",
-        "allow_from": "List of phone numbers allowed to talk to the bot e.g., 2348012345678 (comma-separated, leave blank for anyone).",
+        "allow_from": "List of phone numbers allowed to talk to the bot e.g., 2348012345678 (comma-separated, leave blank to deny all).",
         "group_policy": "If added to a WhatsApp group: 'mention' (only replies when tagged) or 'open' (replies to everything)."
     },
     "email": {
@@ -125,7 +125,7 @@ CHANNEL_FIELD_HINTS = {
         "smtpUsername": "The email address the bot will send from (usually same as IMAP).",
         "smtpPassword": "The SMTP password (or App Password).",
         "fromAddress": "The sender address shown to recipients (e.g., bot@yourdomain.com).",
-        "allow_from": "List of email addresses allowed to talk to the bot (comma-separated, leave blank for anyone)."
+        "allow_from": "List of email addresses allowed to talk to the bot (comma-separated, leave blank to deny all)."
     },
     "qq": {
         "app_id": "App ID from the QQ Bot Open Platform.",
@@ -644,6 +644,17 @@ def _configure_pydantic_channel(config: Config, channel_name: str, config_class:
     dump = working_model.model_dump(by_alias=True, exclude_none=True)
     setattr(config.channels, channel_name, dump)
     console.print(f"\n[green]✓ {channel_name.title()} configured successfully![/green]")
+
+    # Special instructions for WhatsApp post-setup
+    if channel_name.lower() == "whatsapp":
+        console.print("\n[bold cyan]WhatsApp Next Steps:[/bold cyan]")
+        console.print("To link your WhatsApp account, run:")
+        console.print("  [cyan]adkbot channels login whatsapp[/cyan]")
+        console.print("\n[dim]Note: The WhatsApp bridge requires Node.js/npm. If you don't have it:[/dim]")
+        console.print("[dim]  Ubuntu/Debian: sudo apt install nodejs npm[/dim]")
+        console.print("[dim]  macOS: brew install node[/dim]")
+        console.print("[dim]  Windows: Download from https://nodejs.org/[/dim]\n")
+
     questionary.text("Press Enter to continue...").ask()
 
 
@@ -726,6 +737,27 @@ def _save_config(config: Config, config_path: Path) -> bool:
         return False
 
 
+def _show_next_steps() -> None:
+    """Display a beautiful launchpad of commands after successful setup."""
+    console.print()
+    console.print(Panel(
+        "[bold green]🎉 Setup Complete! Your AI is ready.[/bold green]\n\n"
+        "[bold cyan]1. Chat in your Terminal (Quick Test)[/bold cyan]\n"
+        "   Run: [yellow]adkbot agent[/yellow]\n\n"
+        "[bold cyan]2. Start the Chat Gateway (Foreground)[/bold cyan]\n"
+        "   Run: [yellow]adkbot gateway[/yellow]\n"
+        "   [dim]This connects your bot to Telegram, Discord, WhatsApp, etc.[/dim]\n\n"
+        "[bold cyan]3. Run Automatically in the Background (Linux/Mac)[/bold cyan]\n"
+        "   Run: [yellow]adkbot install-service[/yellow]\n"
+        "   [dim]Keeps the bot running 24/7 even after you close the terminal.[/dim]\n\n"
+        "[bold cyan]4. Authenticate QR-Code Channels[/bold cyan]\n"
+        "   Run: [yellow]adkbot channels login whatsapp[/yellow] (or weixin)\n",
+        title="🚀 Next Steps",
+        border_style="green"
+    ))
+    console.print()
+
+
 def run_onboard(initial_config: Config | None = None, skip_wizard: bool = False) -> OnboardResult:
     """Run the main interactive onboarding questionnaire."""
     _check_dependencies()
@@ -774,6 +806,7 @@ def run_onboard(initial_config: Config | None = None, skip_wizard: bool = False)
 
         if answer == "save":
             if _save_config(config, get_config_path()):
+                _show_next_steps()
                 return OnboardResult(config=config, should_save=True)
             continue
 

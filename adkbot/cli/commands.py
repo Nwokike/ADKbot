@@ -47,11 +47,24 @@ except ImportError:
     AdkAgentLoop = None  # type: ignore
     create_adk_loop = None  # type: ignore
 
+# --- MASSIVE HELP MENU UPGRADE ---
 app = typer.Typer(
     name="adkbot",
     context_settings={"help_option_names": ["-h", "--help"]},
-    help=f"{__logo__} adkbot - Personal AI Assistant",
+    help=f"""
+{__logo__} [bold cyan]ADKBot - Personal AI Assistant Framework[/bold cyan]
+
+[bold yellow]🚀 QUICK START[/bold yellow]
+  1. Setup:   [green]adkbot onboard[/green]
+  2. Chat:    [green]adkbot agent[/green]
+  3. Gateway: [green]adkbot gateway[/green] (Connects Telegram, Discord, WhatsApp, etc.)
+
+[bold yellow]🐧 LINUX BACKGROUND SERVICE[/bold yellow]
+  Run ADKBot 24/7 in the background automatically:
+  [green]adkbot install-service[/green]
+    """,
     no_args_is_help=True,
+    rich_markup_mode="rich",
 )
 
 console = Console()
@@ -261,7 +274,7 @@ def onboard(
     config: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
     skip_wizard: bool = typer.Option(False, "--skip-wizard", help="Skip interactive wizard, create default config"),
 ):
-    """Initialize adkbot configuration and workspace."""
+    """Launch the interactive setup wizard for API keys and chat channels."""
     from adkbot.config.loader import get_config_path, load_config, save_config, set_config_path
 
     if config:
@@ -333,24 +346,22 @@ def onboard(
 
     sync_workspace_templates(workspace_path)
 
-    agent_cmd = 'adkbot agent -m "Hello!"'
-    gateway_cmd = "adkbot gateway"
-    if config:
-        agent_cmd += f" --config {config_path}"
-        gateway_cmd += f" --config {config_path}"
+    # Next steps handled by onboard.py wizard natively now
+    if skip_wizard:
+        agent_cmd = 'adkbot agent -m "Hello!"'
+        gateway_cmd = "adkbot gateway"
+        if config:
+            agent_cmd += f" --config {config_path}"
+            gateway_cmd += f" --config {config_path}"
 
-    console.print(f"\n{__logo__} adkbot is ready!")
-    console.print("\nNext steps:")
-    if not skip_wizard:
-        console.print(f"  1. Chat: [cyan]{agent_cmd}[/cyan]")
-        console.print(f"  2. Start gateway: [cyan]{gateway_cmd}[/cyan]")
-    else:
+        console.print(f"\n{__logo__} adkbot is ready!")
+        console.print("\nNext steps:")
         console.print(f"  1. Add your API key to [cyan]{config_path}[/cyan]")
         console.print("     Get one at: https://build.nvidia.com/")
         console.print(f"  2. Chat: [cyan]{agent_cmd}[/cyan]")
-    console.print(
-        "\n[dim]Want Telegram/WhatsApp? See: https://github.com/Nwokike/ADKbot#-chat-apps[/dim]"
-    )
+        console.print(
+            "\n[dim]Want Telegram/WhatsApp? See: https://github.com/Nwokike/ADKbot#-chat-apps[/dim]"
+        )
 
 
 def _merge_missing_defaults(existing: Any, defaults: Any) -> Any:
@@ -389,9 +400,6 @@ def _onboard_plugins(config_path: Path) -> None:
 
     with open(config_path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-
-
-
 
 
 def _get_adk_config(config: Config) -> dict[str, Any]:
@@ -475,7 +483,7 @@ def serve(
     config: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
 
 ):
-    """Start the OpenAI-compatible API server (/v1/chat/completions)."""
+    """Start the OpenAI-compatible local API server."""
     try:
         from aiohttp import web  # noqa: F401
     except ImportError:
@@ -523,7 +531,6 @@ def serve(
         )
     console.print()
 
-
     api_app = create_app(agent_loop, model_name=model_name, request_timeout=timeout)
 
     web.run_app(api_app, host=host, port=port, print=lambda msg: logger.info(msg))
@@ -542,7 +549,7 @@ def gateway(
     config: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
 
 ):
-    """Start the adkbot gateway."""
+    """Start the chat gateway to connect ADKBot to Telegram, Discord, WhatsApp, etc."""
     from loguru import logger
 
     from adkbot.bus.queue import MessageBus
@@ -748,7 +755,7 @@ def agent(
     ),
 
 ):
-    """Interact with the agent directly."""
+    """Chat with your AI agent interactively in the terminal."""
     from loguru import logger
 
     from adkbot.bus.queue import MessageBus
@@ -962,7 +969,7 @@ def agent(
 # ============================================================================
 
 
-channels_app = typer.Typer(help="Manage channels")
+channels_app = typer.Typer(help="Manage channel authentication and setup")
 app.add_typer(channels_app, name="channels")
 
 
@@ -970,7 +977,7 @@ app.add_typer(channels_app, name="channels")
 def channels_status(
     config_path: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
 ):
-    """Show channel status."""
+    """Show connection status of all configured channels."""
     from adkbot.channels.registry import discover_all
     from adkbot.config.loader import load_config, set_config_path
 
@@ -1069,7 +1076,7 @@ def channels_login(
     ),
     config_path: str | None = typer.Option(None, "--config", "-c", help="Path to config file"),
 ):
-    """Authenticate with a channel via QR code or other interactive login."""
+    """Authenticate a channel via QR code (used for WhatsApp and Weixin)."""
     from adkbot.channels.registry import discover_all
     from adkbot.config.loader import load_config, set_config_path
 
@@ -1108,7 +1115,7 @@ app.add_typer(plugins_app, name="plugins")
 
 @plugins_app.command("list")
 def plugins_list():
-    """List all discovered channels (built-in and plugins)."""
+    """List all discovered channel plugins."""
     from adkbot.channels.registry import discover_all, discover_channel_names
     from adkbot.config.loader import load_config
 
@@ -1147,7 +1154,7 @@ def plugins_list():
 
 @app.command()
 def status():
-    """Show adkbot status."""
+    """Show the overall system status and model configuration."""
     from adkbot.config.loader import get_config_path, load_config
 
     config_path = get_config_path()
@@ -1176,7 +1183,7 @@ def status():
 def install_service(
     service_name: str = typer.Option("adkbot-gateway", help="Name of the systemd service"),
 ):
-    """Automatically configure and start adkbot gateway as a background systemd user service."""
+    """Automatically configure and start ADKBot as a background Linux/systemd service."""
     import shutil
     import subprocess
     import sys
@@ -1228,6 +1235,50 @@ WantedBy=default.target
         console.print(f"[red]Error starting systemd service: {e}[/red]")
         raise typer.Exit(1)
 
+# ============================================================================
+# Logs Command
+# ============================================================================
+
+@app.command()
+def logs(
+    lines: int = typer.Option(50, "--lines", "-n", help="Number of lines to show"),
+    follow: bool = typer.Option(True, "--follow/--no-follow", "-f", help="Follow log output"),
+):
+    """View the ADKBot background gateway logs."""
+    import time
+    from adkbot.config.loader import load_config
+    
+    config = load_config()
+    log_file = config.workspace_path.parent / "logs" / "adkbot.log"
+    
+    if not log_file.exists():
+        console.print(f"[red]No logs found at {log_file}[/red]")
+        console.print("[dim]Start the gateway first using 'adkbot gateway'[/dim]")
+        raise typer.Exit(1)
+        
+    console.print(f"[dim]Tailing {log_file}... (Ctrl+C to exit)[/dim]\n")
+    
+    try:
+        with open(log_file, "r", encoding="utf-8") as f:
+            # Read the last N lines
+            all_lines = f.readlines()
+            for line in all_lines[-lines:]:
+                sys.stdout.write(line)
+            
+            if not follow:
+                return
+                
+            # Follow new lines
+            f.seek(0, os.SEEK_END)
+            while True:
+                line = f.readline()
+                if not line:
+                    time.sleep(0.1)
+                    continue
+                sys.stdout.write(line)
+                sys.stdout.flush()
+    except KeyboardInterrupt:
+        console.print("\n[dim]Stopped tailing logs.[/dim]")
 
 if __name__ == "__main__":
     app()

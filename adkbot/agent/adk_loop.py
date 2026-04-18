@@ -235,6 +235,7 @@ class AdkAgentLoop:
             model=self.model,
             api_key=self.api_key,
             api_base=self.api_base,
+            num_retries=5,  # Automatically handles 429s with exponential backoff
         )
 
         # Create the LlmAgent
